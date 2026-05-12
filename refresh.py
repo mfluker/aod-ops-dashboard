@@ -1523,12 +1523,38 @@ def push_to_github(repo_dir):
             ["git", "-C", repo_dir, "commit", "-m", msg],
             check=True, capture_output=True, text=True,
         )
+
+        # If GITHUB_TOKEN is set in the env (e.g. via .env when running from
+        # the Cowork sandbox), inject it into the push URL just for this push.
+        # The token is NEVER written to .git/config — it lives only in this
+        # subprocess invocation. On Mat's Mac the env var is normally unset,
+        # so the existing remote (with macOS keychain auth) is used.
+        push_target = ["origin", "main"]
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        if token:
+            # Resolve the current origin URL and rewrite it with the token.
+            remote = subprocess.run(
+                ["git", "-C", repo_dir, "remote", "get-url", "origin"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+            if remote.startswith("https://github.com/"):
+                authed_url = remote.replace(
+                    "https://github.com/",
+                    f"https://x-access-token:{token}@github.com/",
+                    1,
+                )
+                push_target = [authed_url, "main"]
+
         push = subprocess.run(
-            ["git", "-C", repo_dir, "push", "origin", "main"],
+            ["git", "-C", repo_dir, "push", *push_target],
             capture_output=True, text=True, timeout=60,
         )
         if push.returncode != 0:
-            print(f"\n! git push failed:\n{push.stderr.strip()}", file=sys.stderr)
+            # Scrub the token out of any error message before printing.
+            err = push.stderr.strip()
+            if token:
+                err = err.replace(token, "***GITHUB_TOKEN***")
+            print(f"\n! git push failed:\n{err}", file=sys.stderr)
         else:
             print(f"\n✓ Pushed to GitHub  ({msg})")
     except subprocess.CalledProcessError as e:
