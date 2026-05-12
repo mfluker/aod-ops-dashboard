@@ -47,19 +47,38 @@ TEMPLATE_PATH = os.path.join(HERE, "template.html")
 DEFAULT_OUTPUT_PATH = os.path.join(HERE, "index.html")
 OUTPUT_PATH = os.environ.get("AOD_DASHBOARD_OUT", DEFAULT_OUTPUT_PATH)
 
-# Several candidate paths — we try the local-machine path first, then the sandbox path.
+# Several candidate paths — we try the local-machine path first, then sandbox paths.
 # This lets the script run from Mat's Mac AND from the Cowork bash sandbox.
+#
+# The Cowork sandbox session ID changes every run (e.g. /sessions/<random-name>/...),
+# so we resolve sandbox paths relative to THIS file's location whenever possible,
+# and also glob /sessions/*/mnt/AoD_Cowork/... as a fallback.
+import glob as _glob
+_AOD_COWORK_ROOT = os.path.abspath(os.path.join(HERE, ".."))  # parent of ops-dashboard/
+
+def _sandbox_glob(rel):
+    """Find a file/dir under any /sessions/*/mnt/AoD_Cowork/<rel> mount."""
+    matches = _glob.glob(f"/sessions/*/mnt/AoD_Cowork/{rel}")
+    return matches[0] if matches else None
+
+_canvas_rel = "canvas-query-tmp/canvas-query/skills/canvas-query/scripts"
+_install_rel = "skills/install-vs-deposit/install_vs_deposit.py"
+_refacing_rel = "skills/refacing-sales/refacing_sales.py"
+
 CANVAS_QUERY_DIR_CANDIDATES = [
-    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/canvas-query-tmp/canvas-query/skills/canvas-query/scripts",
-    "/sessions/zealous-fervent-planck/mnt/AoD_Cowork/canvas-query-tmp/canvas-query/skills/canvas-query/scripts",
+    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + _canvas_rel,
+    os.path.join(_AOD_COWORK_ROOT, _canvas_rel),
+    _sandbox_glob(_canvas_rel) or "",
 ]
 INSTALL_VS_DEPOSIT_CANDIDATES = [
-    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/skills/install-vs-deposit/install_vs_deposit.py",
-    "/sessions/zealous-fervent-planck/mnt/AoD_Cowork/skills/install-vs-deposit/install_vs_deposit.py",
+    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + _install_rel,
+    os.path.join(_AOD_COWORK_ROOT, _install_rel),
+    _sandbox_glob(_install_rel) or "",
 ]
 REFACING_SALES_CANDIDATES = [
-    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/skills/refacing-sales/refacing_sales.py",
-    "/sessions/zealous-fervent-planck/mnt/AoD_Cowork/skills/refacing-sales/refacing_sales.py",
+    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + _refacing_rel,
+    os.path.join(_AOD_COWORK_ROOT, _refacing_rel),
+    _sandbox_glob(_refacing_rel) or "",
 ]
 
 def _first_existing(candidates):
@@ -561,6 +580,24 @@ def _keep_top_with_ties(rows, limit):
 # 5. SOLD-TO-INSTALL — calls the install-vs-deposit skill
 # -----------------------------------------------------------------------------
 
+def _refacing_csv_path(start_date, end_date_inclusive):
+    """
+    refacing_sales.py writes its CSV into the AoD_Cowork root it can see —
+    Mat's Mac path when available, otherwise the sandbox mount under
+    /sessions/.../mnt/AoD_Cowork/. Return whichever exists; if neither
+    exists yet, return the most likely candidate so the caller can probe.
+    """
+    name = f"Refacing_Sales_{start_date}_to_{end_date_inclusive}.csv"
+    mac = "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + name
+    sandbox = os.path.join(_AOD_COWORK_ROOT, name)
+    if os.path.exists(mac):
+        return mac
+    if os.path.exists(sandbox):
+        return sandbox
+    # Prefer the path that matches the running environment.
+    return mac if os.path.isdir("/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork") else sandbox
+
+
 def run_install_vs_deposit(start_date, end_date_inclusive):
     """
     Spawn the install_vs_deposit.py skill, parse its CSV, return
@@ -633,10 +670,7 @@ def run_refacing_summary(start_date, end_date_inclusive):
         print(f"  ! refacing_sales failed: {proc.stderr[:500]}", file=sys.stderr)
         return None, None
 
-    csv_path = (
-        "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/"
-        f"Refacing_Sales_{start_date}_to_{end_date_inclusive}.csv"
-    )
+    csv_path = _refacing_csv_path(start_date, end_date_inclusive)
     if not os.path.exists(csv_path):
         # Try to parse from stdout — total revenue + total jobs lines
         total_rev = None
@@ -691,6 +725,31 @@ def _infer_year(month, day, today):
     return candidate
 
 
+def _parse_mfg_date(raw, today):
+    """
+    Parse an Order Date cell from the Mfg Partner Analysis sheet. The sheet
+    uses two formats interchangeably:
+      - 'MM/DD/YYYY' (recent rows — explicit year, use as-is)
+      - 'MM/DD'     (older historical rows — infer the most recent past year)
+    Returns a datetime.date or None when the value is unparseable.
+    """
+    if not raw:
+        return None
+    raw = raw.strip()
+    # Try MM/DD/YYYY first
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", raw)
+    if m:
+        try:
+            return datetime.date(int(m.group(3)), int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            return None
+    # Fall back to MM/DD (infer year)
+    m = re.match(r"^(\d{1,2})/(\d{1,2})$", raw)
+    if m:
+        return _infer_year(int(m.group(1)), int(m.group(2)), today)
+    return None
+
+
 def fetch_mfg_claim_counts(start_date, end_date_inclusive):
     """
     Fetch the published-CSV version of the Mfg Partner Analysis sheet, filter rows
@@ -722,11 +781,7 @@ def fetch_mfg_claim_counts(start_date, end_date_inclusive):
         if order_type not in ("Claim", "Reorder", "Job"):
             continue
 
-        raw_date = (row.get("Order Date") or "").strip()
-        m = re.match(r"^(\d{1,2})/(\d{1,2})$", raw_date)
-        if not m:
-            continue
-        dt = _infer_year(int(m.group(1)), int(m.group(2)), today)
+        dt = _parse_mfg_date(row.get("Order Date"), today)
         if dt is None:
             continue
         if not (start_date <= dt <= end_date_inclusive):
@@ -758,9 +813,11 @@ def fetch_mfg_claim_counts(start_date, end_date_inclusive):
 # biweekly invoice cycle). On Wednesdays, fresh invoices are downloaded BEFORE
 # the refresh runs (see wwex-invoice-downloader skill).
 
+_shipping_parser_rel = "skills/shipping-cost-analysis/scripts"
 SHIPPING_PARSER_CANDIDATES = [
-    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/skills/shipping-cost-analysis/scripts",
-    "/sessions/zealous-fervent-planck/mnt/AoD_Cowork/skills/shipping-cost-analysis/scripts",
+    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + _shipping_parser_rel,
+    os.path.join(_AOD_COWORK_ROOT, _shipping_parser_rel),
+    _sandbox_glob(_shipping_parser_rel) or "",
 ]
 
 _shipping_loader_cached = None
@@ -784,6 +841,36 @@ def _get_shipping_loader():
 def _is_fuel_surcharge(name):
     """Surcharge name contains 'fuel' (case-insensitive)."""
     return name and "fuel" in name.lower()
+
+
+def latest_invoice_ship_date(today=None, lookback_days=90):
+    """
+    Return the most recent ship_date present in the WWEX invoices (within the
+    last `lookback_days`), or None if none can be found.
+
+    Why this exists: invoices lag the calendar (e.g. on 5/12, the freshest
+    invoice may only cover shipments through 4/30). Anchoring the R14 window
+    to "today" causes the current bucket to be sparse. Instead, we anchor to
+    the most recent ship date so R14 always spans 14 days of real data.
+    """
+    today = today or datetime.date.today()
+    load = _get_shipping_loader()
+    start = today - datetime.timedelta(days=lookback_days)
+    try:
+        shipments = load(start_date=str(start), end_date=str(today))
+    except Exception as e:
+        print(f"  ! latest_invoice_ship_date load error: {e}", file=sys.stderr)
+        return None
+    latest = None
+    for s in shipments or []:
+        sd_raw = s.get("ship_date") or ""
+        try:
+            sd = datetime.date.fromisoformat(sd_raw)
+        except ValueError:
+            continue
+        if latest is None or sd > latest:
+            latest = sd
+    return latest
 
 
 def shipping_window_summary(start_date, end_date_inclusive):
@@ -839,15 +926,21 @@ def shipping_window_summary(start_date, end_date_inclusive):
     }
 
 
-def shipping_trend_5x14(today=None):
+def shipping_trend_5x14(today=None, anchor_date=None):
     """
     Five R14 buckets for the three shipping metrics, oldest → newest.
     Loads the past 70 days of shipments once and buckets in Python.
+
+    `anchor_date` is the end of the most recent (rightmost) bucket. When
+    invoices lag the calendar, pass the latest ship date so the trend stays
+    aligned with the headline R14 window. Defaults to `today` for safety.
+
     Returns (cost_per_lb_trend, pallet_pct_trend, surcharge_pct_trend).
     """
     today = today or datetime.date.today()
-    start = today - datetime.timedelta(days=70)
-    end = today
+    anchor = anchor_date or today
+    start = anchor - datetime.timedelta(days=70)
+    end = anchor
     load = _get_shipping_loader()
     try:
         shipments = load(start_date=str(start), end_date=str(end))
@@ -857,7 +950,8 @@ def shipping_trend_5x14(today=None):
     if not shipments:
         return [], [], []
 
-    # buckets[i] = list of shipment dicts; bucket 0 = newest 14 days, bucket 4 = oldest 14 days
+    # buckets[i] = list of shipment dicts; bucket 0 = newest 14 days (relative to anchor),
+    # bucket 4 = oldest 14 days
     buckets = [[] for _ in range(5)]
     for s in shipments:
         sd_raw = s.get("ship_date") or ""
@@ -865,8 +959,8 @@ def shipping_trend_5x14(today=None):
             sd = datetime.date.fromisoformat(sd_raw)
         except ValueError:
             continue
-        days_ago = (today - sd).days
-        idx = _bucket_index(days_ago, 14)
+        days_from_anchor = (anchor - sd).days
+        idx = _bucket_index(days_from_anchor, 14)
         if 0 <= idx < 5:
             buckets[idx].append(s)
 
@@ -1035,10 +1129,7 @@ def refacing_trend_5x7(today=None):
         print(f"  ! refacing trend skill failed: {proc.stderr[:300]}", file=sys.stderr)
         return [], []
 
-    csv_path = (
-        "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/"
-        f"Refacing_Sales_{start}_to_{end_incl}.csv"
-    )
+    csv_path = _refacing_csv_path(start, end_incl)
     if not os.path.exists(csv_path):
         return [], []
 
@@ -1153,11 +1244,7 @@ def claim_trend_5x30(today=None):
         order_type = (row.get("Type") or "").strip()
         if order_type not in ("Claim", "Reorder", "Job"):
             continue
-        raw_date = (row.get("Order Date") or "").strip()
-        m = re.match(r"^(\d{1,2})/(\d{1,2})$", raw_date)
-        if not m:
-            continue
-        dt = _infer_year(int(m.group(1)), int(m.group(2)), today)
+        dt = _parse_mfg_date(row.get("Order Date"), today)
         if dt is None:
             continue
         days_ago = (today - dt).days
@@ -1296,17 +1383,22 @@ def main():
     print(f"   revenue trend = {rf_trend}")
     print(f"   jobs trend = {rfj_trend}")
 
-    # Shipping (R14 — Mat's choice to match WWEX biweekly invoice cycle)
-    r14_current = (w["today"] - datetime.timedelta(days=14), w["today"])
-    r14_prior   = (w["today"] - datetime.timedelta(days=28), w["today"] - datetime.timedelta(days=14))
+    # Shipping (R14 — Mat's choice to match WWEX biweekly invoice cycle).
+    # Anchor the window to the most recent ship date in the invoices rather than
+    # today's calendar date. Invoices lag the calendar, so anchoring to today
+    # causes a sparse current bucket. Falls back to today when no invoices exist.
+    ship_anchor = latest_invoice_ship_date(today=w["today"]) or w["today"]
+    print(f"→ Shipping anchor date (most recent ship_date): {ship_anchor}")
+    r14_current = (ship_anchor - datetime.timedelta(days=14), ship_anchor)
+    r14_prior   = (ship_anchor - datetime.timedelta(days=28), ship_anchor - datetime.timedelta(days=14))
     print("→ Shipping (R14 current)...")
     ship_cur = shipping_window_summary(*r14_current) or {}
     print(f"   cost/lb={ship_cur.get('cost_per_lb')}  pallet%={ship_cur.get('pallet_pct')}  surch%={ship_cur.get('surcharge_pct_ex_fuel')}  n={ship_cur.get('n_shipments')}  ships {ship_cur.get('earliest_ship')}→{ship_cur.get('latest_ship')}")
     print("→ Shipping (R14 prior)...")
     ship_prv = shipping_window_summary(*r14_prior) or {}
-    print(f"   cost/lb={ship_prv.get('cost_per_lb')}  pallet%={ship_prv.get('pallet_pct')}  surch%={ship_prv.get('surcharge_pct_ex_fuel')}  n={ship_prv.get('n_shipments')}")
+    print(f"   cost/lb={ship_prv.get('cost_per_lb')}  pallet%={ship_prv.get('pallet_pct')}  surch%={ship_prv.get('surcharge_pct_ex_fuel')}  n={ship_prv.get('n_shipments')}  ships {ship_prv.get('earliest_ship')}→{ship_prv.get('latest_ship')}")
     print("→ Trendline: shipping (5 × R14)...")
-    cost_lb_trend, pallet_trend, surch_trend = shipping_trend_5x14(today=w["today"])
+    cost_lb_trend, pallet_trend, surch_trend = shipping_trend_5x14(today=w["today"], anchor_date=ship_anchor)
     print(f"   cost/lb trend = {cost_lb_trend}")
     print(f"   pallet trend = {pallet_trend}")
     print(f"   surcharge trend = {surch_trend}")
@@ -1376,9 +1468,11 @@ def main():
         "{{COST_PER_LB_SPARK}}": sparkline_svg(cost_lb_trend, width=300, height=200, opacity=0.36),
 
         "{{PALLET_PCT_VALUE}}":     fmt_pct(ship_cur.get("pallet_pct")),
+        # Pallet % — HIGHER is better (more pallet shipments = better packing/cost).
+        # Increase → green, decrease → red.
         "{{PALLET_PCT_INDICATOR}}": indicator_html(
             pct_change(ship_cur.get("pallet_pct"), ship_prv.get("pallet_pct")),
-            lower_is_better=True,
+            lower_is_better=False,
         ),
         "{{PALLET_PCT_SPARK}}": sparkline_svg(pallet_trend, width=300, height=200, opacity=0.36),
 
@@ -1395,6 +1489,52 @@ def main():
     render(replacements)
     elapsed = (datetime.datetime.now() - started).total_seconds()
     print(f"\n✓ Wrote dashboard to {OUTPUT_PATH}  (took {elapsed:.1f}s)")
+
+    # Push the fresh index.html to GitHub so the live dashboard updates.
+    # No-op if this isn't a git repo, or if the push is suppressed via AOD_SKIP_GIT_PUSH=1.
+    if os.environ.get("AOD_SKIP_GIT_PUSH") == "1":
+        print("\n(Skipping git push — AOD_SKIP_GIT_PUSH=1)")
+    else:
+        push_to_github(HERE)
+
+
+def push_to_github(repo_dir):
+    """Stage index.html, commit, and push. Safe to call repeatedly — quietly no-ops if there's nothing to push."""
+    git_dir = os.path.join(repo_dir, ".git")
+    if not os.path.isdir(git_dir):
+        print(f"\n(No .git folder in {repo_dir} — skipping push.)")
+        return
+
+    try:
+        # Add the freshly rendered HTML
+        subprocess.run(["git", "-C", repo_dir, "add", "index.html"], check=True, capture_output=True, text=True)
+
+        # Check if there's actually a change to commit
+        status = subprocess.run(
+            ["git", "-C", repo_dir, "status", "--porcelain", "index.html"],
+            capture_output=True, text=True, check=True,
+        )
+        if not status.stdout.strip():
+            print("\n(No change to index.html — nothing to push.)")
+            return
+
+        msg = f"Auto-refresh {datetime.datetime.now():%Y-%m-%d %H:%M ET}"
+        subprocess.run(
+            ["git", "-C", repo_dir, "commit", "-m", msg],
+            check=True, capture_output=True, text=True,
+        )
+        push = subprocess.run(
+            ["git", "-C", repo_dir, "push", "origin", "main"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if push.returncode != 0:
+            print(f"\n! git push failed:\n{push.stderr.strip()}", file=sys.stderr)
+        else:
+            print(f"\n✓ Pushed to GitHub  ({msg})")
+    except subprocess.CalledProcessError as e:
+        print(f"\n! git step failed: {e.stderr.strip() if e.stderr else e}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("\n! git push timed out", file=sys.stderr)
 
 
 if __name__ == "__main__":
