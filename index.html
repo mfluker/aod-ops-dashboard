@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Browser auto-reloads every 5 minutes so the TV always shows fresh data after a refresh push -->
+    <meta http-equiv="refresh" content="300">
+    <title>AoD Operations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* === AoD brand palette === */
+            --aod-navy:  #293f76;   /* primary */
+            --aod-teal:  #88b6b1;   /* accent */
+            --aod-linen: #f4ecd9;   /* background */
+
+            /* Derived neutrals */
+            --bg-page:    var(--aod-linen);
+            --bg-card:    #ffffff;
+            --text-primary:   var(--aod-navy);
+            --text-secondary: #6a7080;
+            --text-on-dark:   #ffffff;
+            --border-soft:    rgba(41, 63, 118, 0.10);
+
+            /* Indicator tiers — improving = navy/teal feel, worsening = warm coral */
+            --up-light: #b3d4d0;
+            --up-med:   #4f9d96;
+            --up-deep:  #2c736d;
+            --down-light: #e6b0a8;
+            --down-med:   #c75d50;
+            --down-deep:  #963a2e;
+            --neutral:    #9aa0a6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            min-height: 100%;
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-feature-settings: "tnum" 1, "lnum" 1; /* tabular figures for clean numbers */
+            background: var(--bg-page);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            letter-spacing: -0.01em;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-rows: 64px 1fr;
+            height: 100vh;
+            min-height: 720px; /* allow scroll on small laptop windows; TV (1080p+) just fills */
+            padding: 16px;
+            gap: 12px;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            background: var(--aod-navy);
+            color: var(--text-on-dark);
+            border-radius: 14px;
+            padding: 0 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header .brand {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+        .header .brand .accent {
+            color: var(--aod-teal);
+            font-weight: 500;
+        }
+        .header .updated {
+            font-size: 12px;
+            color: rgba(255,255,255,0.55);
+            text-align: right;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            line-height: 1.4;
+        }
+        .header .updated .stamp { font-weight: 600; color: rgba(255,255,255,0.95); letter-spacing: 0.02em; text-transform: none; font-size: 14px; }
+
+        /* ===== Main grid ===== */
+        .main {
+            display: grid;
+            grid-template-columns: 1.45fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-soft);
+            padding: 22px 28px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
+        }
+        .card > * { position: relative; z-index: 2; }
+
+        /* Sparkline lives behind the content of any card */
+        .sparkline-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .sparkline-bg svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .card .label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+        .card .sublabel {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            letter-spacing: 0.04em;
+        }
+
+        /* Revenue hero card spans the whole top row */
+        .revenue-hero {
+            grid-column: 1 / 3;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .revenue-hero .label {
+            font-size: 14px;
+        }
+        .revenue-hero .value {
+            font-size: 108px;
+            font-weight: 800;
+            line-height: 1.0;
+            margin-top: 4px;
+            color: var(--aod-navy);
+            letter-spacing: -0.035em;
+        }
+        .revenue-hero .indicator-row {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 22px;
+        }
+
+        /* Appointments card — left, second row */
+        .appointments {
+            grid-column: 1 / 2;
+            grid-row: 2 / 3;
+        }
+        .appointments .big-number {
+            font-size: 84px;
+            font-weight: 800;
+            line-height: 1;
+            margin-top: 4px;
+            letter-spacing: -0.035em;
+            color: var(--aod-navy);
+        }
+        .appointments .indicator-row {
+            margin-top: 4px;
+            font-size: 18px;
+        }
+        .appointments .lists {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin-top: 14px;
+        }
+        .appointments .lists h3 {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            color: var(--aod-teal);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .appointments .lists ol {
+            list-style: none;
+            counter-reset: rank;
+        }
+        .appointments .lists li {
+            counter-increment: rank;
+            font-size: 16px;
+            font-weight: 500;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-soft);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .appointments .lists li:last-child { border-bottom: 0; }
+        .appointments .lists li::before {
+            content: counter(rank);
+            font-weight: 700;
+            font-size: 12px;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.22);
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .appointments .lists li .name {
+            flex: 1;
+            color: var(--aod-navy);
+            font-weight: 500;
+        }
+        .appointments .lists li .iata {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--aod-navy);
+            background: var(--aod-linen);
+            border: 1px solid rgba(41, 63, 118, 0.15);
+            padding: 2px 6px;
+            border-radius: 5px;
+        }
+        .appointments .lists li .count {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        /* Operations grid — right side, second row */
+        .operations {
+            grid-column: 2 / 3;
+            grid-row: 2 / 3;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 12px;
+            background: transparent;
+            border: 0;
+            padding: 0;
+            box-shadow: none;
+        }
+        .op-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-soft);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
+        }
+        .op-card > * { position: relative; z-index: 2; }
+        .op-card .label {
+            font-size: 10px;
+            letter-spacing: 0.2em;
+        }
+        .op-card .value {
+            font-size: 46px;
+            font-weight: 800;
+            line-height: 1;
+            margin-top: 4px;
+            letter-spacing: -0.03em;
+            color: var(--aod-navy);
+        }
+        .op-card .indicator-row {
+            margin-top: 6px;
+            font-size: 15px;
+        }
+
+        /* ===== Indicators ===== */
+        .indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            padding: 3px 11px;
+            border-radius: 999px;
+            background: rgba(41, 63, 118, 0.06);
+            letter-spacing: 0.01em;
+        }
+        .indicator .arrow {
+            font-size: 1.05em;
+            line-height: 1;
+        }
+        .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.14); }
+        .indicator.up-med    { color: var(--up-med);   background: rgba(79, 157, 150, 0.14); }
+        .indicator.up-deep   { color: var(--up-deep);  background: rgba(44, 115, 109, 0.14); }
+        .indicator.down-light{ color: var(--down-light); background: rgba(230, 176, 168, 0.18); }
+        .indicator.down-med  { color: var(--down-med);   background: rgba(199, 93, 80, 0.14); }
+        .indicator.down-deep { color: var(--down-deep);  background: rgba(150, 58, 46, 0.14); }
+        .indicator.no-data   { color: var(--neutral); font-weight: 500; font-style: italic; background: transparent; }
+
+        .vs-label {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-left: 4px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+
+        <!-- ===== HEADER ===== -->
+        <div class="header">
+            <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
+            <div class="updated">
+                Last refreshed<br>
+                <span class="stamp">Mon May 11 · 9:41 PM ET</span>
+            </div>
+        </div>
+
+        <!-- ===== MAIN ===== -->
+        <div class="main">
+
+            <!-- TOTAL NETWORK REVENUE (hero) -->
+            <div class="card revenue-hero">
+                <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 1200 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14.0,286.0 C62.8,265.7 209.3,202.1 307.0,164.2 C404.7,126.4 502.3,84.1 600.0,59.0 C697.7,34.0 795.3,3.9 893.0,14.0 C990.7,24.1 1137.2,101.8 1186.0,119.4" fill="none" stroke="#88b6b1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.16"/></svg></div>
+                <div class="label">Total Network Revenue · Rolling 30 Days</div>
+                <div class="value">$1,110,810</div>
+                <div class="indicator-row">
+                    <span class="indicator down-deep"><span class="arrow">▼</span> -22.7%<span class="vs-label">vs prior</span></span>
+                </div>
+            </div>
+
+            <!-- DESIGN APPOINTMENTS -->
+            <div class="card appointments">
+                <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14.0,114.8 C37.8,110.2 109.3,82.5 157.0,87.6 C204.7,92.8 252.3,96.0 300.0,145.8 C347.7,195.5 395.3,408.0 443.0,386.0 C490.7,364.0 562.2,76.0 586.0,14.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.18"/></svg></div>
+                <div class="label">Design Appointments · Next 7 Days</div>
+                <div class="big-number">146</div>
+                <div class="indicator-row">
+                    <span class="indicator down-deep"><span class="arrow">▼</span> -17.0%<span class="vs-label">vs prior</span></span>
+                </div>
+                <div class="lists">
+                    <div>
+                        <h3>Top Locations</h3>
+                        <ol>
+                            <li><span class="name">Art of Drawers Phoenix</span><span class="count">14 appts</span></li>
+            <li><span class="name">Art of Drawers Twin Cities</span><span class="count">10 appts</span></li>
+            <li><span class="name">Art of Drawers Raleigh</span><span class="count">9 appts</span></li>
+                        </ol>
+                    </div>
+                    <div>
+                        <h3>Top Designers</h3>
+                        <ol>
+                            <li><span class="name">Alicia Pesina</span><span class="iata">PHX</span><span class="count">8 appts</span></li>
+            <li><span class="name">Dave Feehrer</span><span class="iata">RDU</span><span class="count">8 appts</span></li>
+            <li><span class="name">Scott Buck</span><span class="iata">MSP</span><span class="count">7 appts</span></li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OPERATIONS GRID -->
+            <div class="operations">
+                <div class="op-card">
+                    <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14.0,128.4 C25.3,114.5 59.3,51.9 82.0,45.4 C104.7,38.9 127.3,66.0 150.0,89.4 C172.7,112.8 195.3,198.6 218.0,186.0 C240.7,173.4 274.7,42.7 286.0,14.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/></svg></div>
+                    <div>
+                        <div class="label">Refacing Revenue</div>
+                        <div class="sublabel">Rolling 7 Days</div>
+                    </div>
+                    <div>
+                        <div class="value">$108K</div>
+                        <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▲</span> +378.5%<span class="vs-label">vs prior</span></span></div>
+                    </div>
+                </div>
+
+                <div class="op-card">
+                    <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14.0,14.0 C25.3,14.0 59.3,-3.6 82.0,14.0 C104.7,31.6 127.3,91.2 150.0,119.8 C172.7,148.5 195.3,192.6 218.0,186.0 C240.7,179.4 274.7,97.8 286.0,80.2" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/></svg></div>
+                    <div>
+                        <div class="label">Sold &rarr; Install (median)</div>
+                        <div class="sublabel">Rolling 30 Days</div>
+                    </div>
+                    <div>
+                        <div class="value">7w 6d</div>
+                        <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▲</span> +14.6%<span class="vs-label">vs prior</span></span></div>
+                    </div>
+                </div>
+
+                <div class="op-card">
+                    <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14.0,186.0 C25.3,180.7 59.3,161.3 82.0,154.2 C104.7,147.0 127.3,166.5 150.0,143.2 C172.7,119.8 195.3,25.6 218.0,14.0 C240.7,2.4 274.7,63.6 286.0,73.5" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"/></svg></div>
+                    <div>
+                        <div class="label">Sold &rarr; Install &lt; 10 wks</div>
+                        <div class="sublabel">Rolling 30 Days</div>
+                    </div>
+                    <div>
+                        <div class="value">74.1%</div>
+                        <div class="indicator-row"><span class="indicator down-med"><span class="arrow">▼</span> -8.0%<span class="vs-label">vs prior</span></span></div>
+                    </div>
+                </div>
+
+                <div class="op-card">
+                    <div class="sparkline-bg"></div>
+                    <div>
+                        <div class="label">Claim Line Items %</div>
+                        <div class="sublabel">Rolling 30 Days</div>
+                    </div>
+                    <div>
+                        <div class="value">—</div>
+                        <div class="indicator-row"><span class="indicator no-data">not enough data yet</span></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

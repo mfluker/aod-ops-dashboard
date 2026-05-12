@@ -1,0 +1,20 @@
+# Local environment / secrets — don't commit
+.env
+.env.local
+
+# Generated previews / scratch
+preview.html
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor cruft
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="300">
+    <title>AoD Operations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --aod-navy:  #293f76;
+            --aod-teal:  #88b6b1;
+            --aod-linen: #f4ecd9;
+
+            --bg-page:    var(--aod-linen);
+            --bg-card:    #ffffff;
+            --text-primary:   var(--aod-navy);
+            --text-secondary: #6a7080;
+            --text-on-dark:   #ffffff;
+            --border-soft:    rgba(41, 63, 118, 0.10);
+
+            --up-light: #b3d4d0;
+            --up-med:   #4f9d96;
+            --up-deep:  #2c736d;
+            --down-light: #e6b0a8;
+            --down-med:   #c75d50;
+            --down-deep:  #963a2e;
+            --neutral:    #9aa0a6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-feature-settings: "tnum" 1, "lnum" 1;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            overflow: hidden;
+            letter-spacing: -0.01em;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-rows: 52px 1fr 1fr;
+            height: 100vh;
+            padding: 10px;
+            gap: 8px;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            background: var(--aod-navy);
+            color: var(--text-on-dark);
+            border-radius: 12px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header .brand {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+        .header .brand .accent { color: var(--aod-teal); font-weight: 500; }
+        .header .updated {
+            font-size: 11px;
+            color: rgba(255,255,255,0.55);
+            text-align: right;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            line-height: 1.4;
+        }
+        .header .updated .stamp { font-weight: 600; color: rgba(255,255,255,0.95); letter-spacing: 0.01em; text-transform: none; font-size: 13px; }
+
+        /* ===== Section label (above each block) ===== */
+        .section-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.28em;
+            color: var(--aod-navy);
+            text-transform: uppercase;
+            margin: 0 2px 4px;
+        }
+        .section-label::before {
+            content: "";
+            width: 16px;
+            height: 2px;
+            background: var(--aod-teal);
+            border-radius: 1px;
+        }
+        .section-label .note {
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        /* ===== AoD Network section (top half) ===== */
+        .aod-network {
+            display: grid;
+            grid-template-rows: auto 1.05fr 1fr;
+            gap: 8px;
+            min-height: 0;
+        }
+        .aod-network .row-bottom {
+            display: grid;
+            grid-template-columns: 1fr 1.3fr;
+            gap: 8px;
+            min-height: 0;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-soft);
+            padding: 12px 18px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
+            min-height: 0;
+        }
+        .card > *:not(.sparkline-bg) { position: relative; z-index: 2; }
+
+        .sparkline-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .sparkline-bg svg { width: 100%; height: 100%; display: block; }
+
+        .card .label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+        .card .sublabel {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            letter-spacing: 0.04em;
+        }
+
+        /* Revenue hero */
+        .revenue-hero {
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 24px;
+        }
+        .revenue-hero .label { font-size: 11px; }
+        .revenue-hero .value {
+            font-size: 88px;
+            font-weight: 800;
+            line-height: 1.0;
+            margin-top: 2px;
+            color: var(--aod-navy);
+            letter-spacing: -0.035em;
+        }
+        .revenue-hero .indicator-row {
+            margin-top: 4px;
+            font-size: 17px;
+        }
+
+        /* Appointments */
+        .appointments .big-number {
+            font-size: 72px;
+            font-weight: 800;
+            line-height: 1;
+            margin-top: 2px;
+            letter-spacing: -0.035em;
+            color: var(--aod-navy);
+        }
+        .appointments .indicator-row {
+            margin-top: 2px;
+            font-size: 14px;
+        }
+
+        /* Top lists */
+        .top-lists {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 14px 18px;
+            align-content: stretch;
+        }
+        .top-lists > div {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .top-lists h3 {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            color: var(--aod-teal);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .top-lists ol {
+            list-style: none;
+            counter-reset: rank;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            justify-content: space-around;
+        }
+        .top-lists li {
+            counter-increment: rank;
+            font-size: 16px;
+            font-weight: 500;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-soft);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .top-lists li:last-child { border-bottom: 0; }
+        .top-lists li::before {
+            content: counter(rank);
+            font-weight: 700;
+            font-size: 10px;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.22);
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .top-lists li .name { flex: 1; color: var(--aod-navy); font-weight: 500; }
+        .top-lists li .iata {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: var(--aod-navy);
+            background: var(--aod-linen);
+            border: 1px solid rgba(41, 63, 118, 0.15);
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+        .top-lists li .count {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        /* ===== Bottom: 4 category columns ===== */
+        .categories {
+            display: grid;
+            grid-template-columns: 1fr 1fr 0.85fr 1.1fr;
+            gap: 8px;
+            min-height: 0;
+        }
+        .category-col {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 5px;
+            min-height: 0;
+        }
+        .category-col .col-header {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            color: var(--aod-navy);
+            text-transform: uppercase;
+            padding: 2px 2px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .category-col .col-header::before {
+            content: "";
+            width: 14px;
+            height: 2px;
+            background: var(--aod-teal);
+            border-radius: 1px;
+        }
+        .category-col .col-header .note {
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            color: var(--text-secondary);
+        }
+        .category-col .stack {
+            display: grid;
+            gap: 6px;
+            min-height: 0;
+        }
+        .category-col .stack.has-2 { grid-template-rows: 1fr 1fr; }
+        .category-col .stack.has-3 { grid-template-rows: 1fr 1fr 1fr; }
+        .category-col .stack.has-1 { grid-template-rows: 1fr; }
+
+        .metric-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-soft);
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
+        }
+        .metric-card > *:not(.sparkline-bg) { position: relative; z-index: 2; }
+        .metric-card .label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+        .metric-card .sublabel {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 0;
+            letter-spacing: 0.04em;
+        }
+        .metric-card .value {
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1;
+            margin-top: 2px;
+            letter-spacing: -0.03em;
+            color: var(--aod-navy);
+        }
+        .metric-card .indicator-row {
+            margin-top: 3px;
+            font-size: 13px;
+        }
+        .metric-card .ship-span {
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        /* Manufacturing column has only 1 card — make it look intentionally large */
+        .category-col .stack.has-1 .metric-card .value { font-size: 60px; }
+        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; margin-top: 6px; }
+
+        /* ===== Indicators ===== */
+        .indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 999px;
+            background: rgba(41, 63, 118, 0.06);
+            letter-spacing: 0.01em;
+        }
+        .indicator .arrow { font-size: 1.05em; line-height: 1; }
+        .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.14); }
+        .indicator.up-med    { color: var(--up-med);   background: rgba(79, 157, 150, 0.14); }
+        .indicator.up-deep   { color: var(--up-deep);  background: rgba(44, 115, 109, 0.14); }
+        .indicator.down-light{ color: var(--down-light); background: rgba(230, 176, 168, 0.18); }
+        .indicator.down-med  { color: var(--down-med);   background: rgba(199, 93, 80, 0.14); }
+        .indicator.down-deep { color: var(--down-deep);  background: rgba(150, 58, 46, 0.14); }
+        .indicator.no-data   { color: var(--neutral); font-weight: 500; font-style: italic; background: transparent; padding: 0; }
+
+        .vs-label {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-left: 3px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+
+        <!-- ===== HEADER ===== -->
+        <div class="header">
+            <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
+            <div class="updated">
+                Last refreshed<br>
+                <span class="stamp">{{LAST_UPDATED}}</span>
+            </div>
+        </div>
+
+        <!-- ===== AOD NETWORK ===== -->
+        <div class="aod-network">
+            <div class="section-label">AoD Network</div>
+            <div class="card revenue-hero">
+                <div class="sparkline-bg">{{REVENUE_SPARK}}</div>
+                <div class="label">Total Network Revenue · Rolling 30 Days</div>
+                <div class="value">{{REVENUE_VALUE}}</div>
+                <div class="indicator-row">{{REVENUE_INDICATOR}}</div>
+            </div>
+            <div class="row-bottom">
+                <div class="card appointments">
+                    <div class="sparkline-bg">{{APPT_SPARK}}</div>
+                    <div class="label">Design Appointments · Next 7 Days</div>
+                    <div class="big-number">{{APPT_COUNT}}</div>
+                    <div class="indicator-row">{{APPT_INDICATOR}}</div>
+                </div>
+                <div class="card top-lists">
+                    <div>
+                        <h3>Top Locations</h3>
+                        <ol>
+                            {{TOP_LOCATIONS}}
+                        </ol>
+                    </div>
+                    <div>
+                        <h3>Top Designers</h3>
+                        <ol>
+                            {{TOP_DESIGNERS}}
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== 4 CATEGORY COLUMNS ===== -->
+        <div class="categories">
+
+            <!-- REFACING -->
+            <div class="category-col">
+                <div class="col-header">Refacing <span class="note">R7</span></div>
+                <div class="stack has-2">
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{REFACING_SPARK}}</div>
+                        <div class="label">Refacing Revenue</div>
+                        <div class="value">{{REFACING_VALUE}}</div>
+                        <div class="indicator-row">{{REFACING_INDICATOR}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{REFACING_JOBS_SPARK}}</div>
+                        <div class="label">Refacing Jobs</div>
+                        <div class="value">{{REFACING_JOBS_VALUE}}</div>
+                        <div class="indicator-row">{{REFACING_JOBS_INDICATOR}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NETWORK LEAD TIMES -->
+            <div class="category-col">
+                <div class="col-header">Network Lead Times <span class="note">R30</span></div>
+                <div class="stack has-2">
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{S2I_MEDIAN_SPARK}}</div>
+                        <div class="label">Sold &rarr; Install (median)</div>
+                        <div class="value">{{S2I_MEDIAN_VALUE}}</div>
+                        <div class="indicator-row">{{S2I_MEDIAN_INDICATOR}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{S2I_PCT_SPARK}}</div>
+                        <div class="label">Sold &rarr; Install &lt; 10 wks</div>
+                        <div class="value">{{S2I_PCT_VALUE}}</div>
+                        <div class="indicator-row">{{S2I_PCT_INDICATOR}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MANUFACTURING -->
+            <div class="category-col">
+                <div class="col-header">Manufacturing <span class="note">R30</span></div>
+                <div class="stack has-1">
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{CLAIM_PCT_SPARK}}</div>
+                        <div class="label">Claim Line Items %</div>
+                        <div class="value">{{CLAIM_PCT_VALUE}}</div>
+                        <div class="indicator-row">{{CLAIM_PCT_INDICATOR}}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SHIPPING -->
+            <div class="category-col">
+                <div class="col-header">Shipping <span class="note">R14 · WWEX</span></div>
+                <div class="stack has-3">
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{COST_PER_LB_SPARK}}</div>
+                        <div class="label">Cost per lb</div>
+                        <div class="value">{{COST_PER_LB_VALUE}}</div>
+                        <div class="indicator-row">{{COST_PER_LB_INDICATOR}}</div>
+                        <div class="ship-span">{{SHIP_SPAN}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{PALLET_PCT_SPARK}}</div>
+                        <div class="label">Pallet %</div>
+                        <div class="value">{{PALLET_PCT_VALUE}}</div>
+                        <div class="indicator-row">{{PALLET_PCT_INDICATOR}}</div>
+                        <div class="ship-span">{{SHIP_SPAN}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="sparkline-bg">{{SURCHARGE_PCT_SPARK}}</div>
+                        <div class="label">Surcharge % (ex-fuel)</div>
+                        <div class="value">{{SURCHARGE_PCT_VALUE}}</div>
+                        <div class="indicator-row">{{SURCHARGE_PCT_INDICATOR}}</div>
+                        <div class="ship-span">{{SHIP_SPAN}}</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
