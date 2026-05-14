@@ -1,0 +1,13 @@
+# Python dependencies for the AoD Operations Dashboard refresh.
+#
+# run.sh installs these automatically before launching refresh.py, so
+# adding a new dependency here is all it takes to wire it into the
+# scheduled refresh.
+#
+# Why each one is here:
+#   xlrd  — reads the legacy .xls WWEX invoice files. Used by the
+#           shipping parser at skills/shipping-cost-analysis/scripts/
+#           parse_wwex_invoices.py. Without it, the Shipping section
+#           silently returns no data.
+
+xlrd==2.0.1
