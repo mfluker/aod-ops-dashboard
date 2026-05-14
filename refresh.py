@@ -36,7 +36,10 @@ import math
 import json
 import datetime
 import subprocess
+import base64
+import hashlib
 from urllib.request import urlopen, Request
+from urllib.error import HTTPError
 
 # -----------------------------------------------------------------------------
 # 1. PATHS & CONFIG
@@ -612,25 +615,37 @@ def run_install_vs_deposit(start_date, end_date_inclusive):
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
     if proc.returncode != 0:
-        print(f"  ! install_vs_deposit failed: {proc.stderr[:500]}", file=sys.stderr)
+        # Bumped from [:500] to [:3000] — the truncated form was just printing the
+        # traceback source line (e.g. line 113 of install_vs_deposit.py) and cutting
+        # off the actual exception type/message, which made errors look like syntax bugs.
+        print(f"  ! install_vs_deposit failed (rc={proc.returncode}): {proc.stderr[:3000]}", file=sys.stderr)
         return None, None, 0
 
     days_list = []
     under_count = 0
     n = 0
+    # Diagnostics: count how rows were classified, so a silent "no data" outcome is loud.
+    total_rows = 0
+    skipped_blank = 0
+    skipped_nonint = 0
+    skipped_negative = 0
     try:
         with open(out_csv) as fh:
             for row in csv.DictReader(fh):
+                total_rows += 1
                 # The skill includes a Days_Deposit_To_Install int column and Under_10_Weeks Y/N.
                 raw = (row.get("Days_Deposit_To_Install") or "").strip()
                 if not raw:
+                    skipped_blank += 1
                     continue
                 try:
                     d = int(raw)
                 except ValueError:
+                    skipped_nonint += 1
                     continue
                 if d < 0:
                     # Negative = install before deposit (data quality issue). Skip from median.
+                    skipped_negative += 1
                     continue
                 days_list.append(d)
                 n += 1
@@ -641,6 +656,19 @@ def run_install_vs_deposit(start_date, end_date_inclusive):
         return None, None, 0
 
     if not days_list:
+        # SILENT-FAILURE GUARD — script returned rc=0 but produced no usable rows.
+        # Print everything an operator needs to debug without re-running the job.
+        print(
+            f"  ! install_vs_deposit produced NO usable rows for {start_date}→{end_date_inclusive}: "
+            f"csv={out_csv}, csv_rows={total_rows}, skipped_blank={skipped_blank}, "
+            f"skipped_nonint={skipped_nonint}, skipped_negative={skipped_negative}",
+            file=sys.stderr,
+        )
+        # Tail of stdout/stderr from the skill is often the clue (Canvas auth, timeout, empty SQL result, etc.)
+        if proc.stdout:
+            print(f"    stdout tail: {proc.stdout[-400:].strip()}", file=sys.stderr)
+        if proc.stderr:
+            print(f"    stderr tail: {proc.stderr[-400:].strip()}", file=sys.stderr)
         return None, None, 0
 
     days_list.sort()
@@ -1181,15 +1209,18 @@ def install_trend_5x30(today=None):
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=360)
     if proc.returncode != 0:
-        print(f"  ! install trend skill failed: {proc.stderr[:300]}", file=sys.stderr)
+        # Bumped from [:300] to [:3000] (see note on install_vs_deposit failure above).
+        print(f"  ! install trend skill failed (rc={proc.returncode}): {proc.stderr[:3000]}", file=sys.stderr)
         return [], []
 
     days_buckets = [[] for _ in range(5)]
     under_buckets = [[0, 0] for _ in range(5)]  # [under_count, total]
 
+    total_rows = 0
     try:
         with open(out_csv) as fh:
             for row in csv.DictReader(fh):
+                total_rows += 1
                 raw = (row.get("Days_Deposit_To_Install") or "").strip()
                 inst_raw = (row.get("Install_Date") or "").strip().split(" ")[0]
                 if not raw or not inst_raw:
@@ -1209,7 +1240,20 @@ def install_trend_5x30(today=None):
                 if (row.get("Under_10_Weeks") or "").strip() == "Y":
                     under_buckets[idx][0] += 1
     except FileNotFoundError:
+        print(f"  ! install trend CSV not found at {out_csv}", file=sys.stderr)
         return [], []
+
+    if total_rows == 0:
+        # SILENT-FAILURE GUARD — script ran with rc=0 but produced an empty CSV.
+        print(
+            f"  ! install trend produced an EMPTY CSV at {out_csv} (no data rows). "
+            f"This usually means the Canvas query returned 0 rows.",
+            file=sys.stderr,
+        )
+        if proc.stdout:
+            print(f"    stdout tail: {proc.stdout[-400:].strip()}", file=sys.stderr)
+        if proc.stderr:
+            print(f"    stderr tail: {proc.stderr[-400:].strip()}", file=sys.stderr)
 
     medians = []
     pcts = []
@@ -1498,12 +1542,163 @@ def main():
         push_to_github(HERE)
 
 
+def _cleanup_stale_git_locks(git_dir):
+    """Remove or rename any stale *.lock files inside .git/.
+
+    Why this exists: Git creates short-lived lock files (.git/index.lock,
+    .git/HEAD.lock) while it works, and normally deletes them in milliseconds.
+    But when this script runs inside the Cowork sandbox, the FUSE mount
+    refuses unlink() calls inside .git/ ("Operation not permitted"). Each
+    git command therefore leaves a lock behind, breaking the *next* git
+    command with "Unable to create '.git/index.lock': File exists."
+
+    Strategy: try os.unlink() first (always works on Mat's Mac — no-op there
+    if no locks exist). If unlink fails, rename the lock to .lock.old, which
+    git ignores. If both fail, log and continue — the API fallback path will
+    take over.
+    """
+    if not os.path.isdir(git_dir):
+        return
+    for name in ("index.lock", "HEAD.lock"):
+        path = os.path.join(git_dir, name)
+        if not os.path.exists(path):
+            continue
+        try:
+            os.unlink(path)
+        except OSError:
+            # Sandbox can't unlink — try renaming instead. os.replace
+            # overwrites any existing target on Unix.
+            try:
+                os.replace(path, path + ".old")
+            except OSError as e:
+                print(f"  ! could not clear {name}: {e}", file=sys.stderr)
+
+
+def _push_via_github_api(repo_dir, message):
+    """Publish index.html through GitHub's Contents API (no git needed).
+
+    Used as a fallback when ``git push`` fails — typically because of stale
+    .git/ locks in the sandbox that we couldn't clean up. Requires
+    GITHUB_TOKEN to be set (loaded from .env). Returns True on success.
+    """
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if not token:
+        print("  ! GITHUB_TOKEN not set — cannot use API fallback.", file=sys.stderr)
+        return False
+
+    # Figure out which repo to publish to, by reading the origin URL.
+    try:
+        remote_url = subprocess.run(
+            ["git", "-C", repo_dir, "remote", "get-url", "origin"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError:
+        print("  ! Could not read origin URL — cannot use API fallback.", file=sys.stderr)
+        return False
+
+    m = re.match(r"https://github\.com/([^/]+/[^/.]+?)(?:\.git)?/?$", remote_url)
+    if not m:
+        print(f"  ! Origin URL not GitHub HTTPS: {remote_url}", file=sys.stderr)
+        return False
+    repo = m.group(1)  # e.g. "mfluker/aod-ops-dashboard"
+
+    html_path = os.path.join(repo_dir, "index.html")
+    with open(html_path, "rb") as f:
+        local_bytes = f.read()
+
+    # GitHub's "sha" for a file is the git blob SHA-1: sha1("blob " + len + "\0" + content).
+    # Computing it locally lets us no-op if the live file already matches.
+    blob_header = f"blob {len(local_bytes)}\0".encode()
+    local_blob_sha = hashlib.sha1(blob_header + local_bytes).hexdigest()
+
+    api_url = f"https://api.github.com/repos/{repo}/contents/index.html"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "aod-ops-dashboard-refresh",
+    }
+
+    # GET the current file SHA on the default branch
+    remote_sha = None
+    try:
+        with urlopen(Request(api_url, headers=headers)) as resp:
+            remote_sha = json.loads(resp.read().decode()).get("sha")
+    except HTTPError as e:
+        if e.code != 404:
+            print(f"  ! API GET failed: HTTP {e.code}", file=sys.stderr)
+            return False
+        # 404 = file doesn't exist yet, that's fine — first publish.
+
+    if remote_sha and remote_sha == local_blob_sha:
+        print("\n(No change to index.html — nothing to push.)")
+        return True
+
+    payload = {
+        "message": message,
+        "content": base64.b64encode(local_bytes).decode(),
+        "branch": "main",
+    }
+    if remote_sha:
+        payload["sha"] = remote_sha
+
+    req = Request(
+        api_url,
+        method="PUT",
+        data=json.dumps(payload).encode(),
+        headers={**headers, "Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(req) as resp:
+            result = json.loads(resp.read().decode())
+            commit_sha = result.get("commit", {}).get("sha", "?")[:7]
+            print(f"\n✓ Pushed via GitHub API  (commit {commit_sha} — {message})")
+            return True
+    except HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:300] if e.fp else ""
+        print(f"  ! API PUT failed: HTTP {e.code} {body}", file=sys.stderr)
+        return False
+
+
 def push_to_github(repo_dir):
-    """Stage index.html, commit, and push. Safe to call repeatedly — quietly no-ops if there's nothing to push."""
+    """Stage index.html, commit, and push. Safe to call repeatedly — quietly no-ops if there's nothing to push.
+
+    Two safety nets are layered in:
+      1. Stale-lock cleanup: leftover .git/*.lock files (common in the
+         Cowork sandbox where unlink() in .git/ is forbidden) are renamed
+         out of the way before any git command runs.
+      2. GitHub API fallback: if the git path still fails — or the push
+         itself errors out — index.html is published via the Contents API
+         instead, so the live dashboard updates either way.
+    """
     git_dir = os.path.join(repo_dir, ".git")
     if not os.path.isdir(git_dir):
         print(f"\n(No .git folder in {repo_dir} — skipping push.)")
         return
+
+    # Safety net #1 — clean up any orphan locks from a previous crashed run.
+    _cleanup_stale_git_locks(git_dir)
+
+    msg = f"Auto-refresh {datetime.datetime.now():%Y-%m-%d %H:%M ET}"
+    git_succeeded = False  # True after a successful `git push`
+    git_no_op = False      # True if git determined there are no changes
+
+    # Safety net #0 — keep local main in sync with origin BEFORE we try to
+    # commit. Whenever the GitHub API fallback (safety net #2) succeeds,
+    # local main falls one commit behind, and the next run's `git push` is
+    # rejected as non-fast-forward. A rebase pull catches local up cleanly
+    # because index.html is the only file this script touches, so there is
+    # nothing to merge-conflict with. Failures here are non-fatal — the
+    # downstream push (or the API fallback) will surface the real error.
+    try:
+        subprocess.run(
+            ["git", "-C", repo_dir, "pull", "--rebase", "--autostash", "origin", "main"],
+            check=True, capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or str(e)).strip()
+        print(f"\n! git pull --rebase failed (continuing anyway): {err}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("\n! git pull --rebase timed out (continuing anyway)", file=sys.stderr)
 
     try:
         # Add the freshly rendered HTML
@@ -1516,51 +1711,59 @@ def push_to_github(repo_dir):
         )
         if not status.stdout.strip():
             print("\n(No change to index.html — nothing to push.)")
-            return
-
-        msg = f"Auto-refresh {datetime.datetime.now():%Y-%m-%d %H:%M ET}"
-        subprocess.run(
-            ["git", "-C", repo_dir, "commit", "-m", msg],
-            check=True, capture_output=True, text=True,
-        )
-
-        # If GITHUB_TOKEN is set in the env (e.g. via .env when running from
-        # the Cowork sandbox), inject it into the push URL just for this push.
-        # The token is NEVER written to .git/config — it lives only in this
-        # subprocess invocation. On Mat's Mac the env var is normally unset,
-        # so the existing remote (with macOS keychain auth) is used.
-        push_target = ["origin", "main"]
-        token = os.environ.get("GITHUB_TOKEN", "").strip()
-        if token:
-            # Resolve the current origin URL and rewrite it with the token.
-            remote = subprocess.run(
-                ["git", "-C", repo_dir, "remote", "get-url", "origin"],
-                capture_output=True, text=True, check=True,
-            ).stdout.strip()
-            if remote.startswith("https://github.com/"):
-                authed_url = remote.replace(
-                    "https://github.com/",
-                    f"https://x-access-token:{token}@github.com/",
-                    1,
-                )
-                push_target = [authed_url, "main"]
-
-        push = subprocess.run(
-            ["git", "-C", repo_dir, "push", *push_target],
-            capture_output=True, text=True, timeout=60,
-        )
-        if push.returncode != 0:
-            # Scrub the token out of any error message before printing.
-            err = push.stderr.strip()
-            if token:
-                err = err.replace(token, "***GITHUB_TOKEN***")
-            print(f"\n! git push failed:\n{err}", file=sys.stderr)
+            git_no_op = True
         else:
-            print(f"\n✓ Pushed to GitHub  ({msg})")
+            subprocess.run(
+                ["git", "-C", repo_dir, "commit", "-m", msg],
+                check=True, capture_output=True, text=True,
+            )
+
+            # If GITHUB_TOKEN is set in the env (e.g. via .env when running from
+            # the Cowork sandbox), inject it into the push URL just for this push.
+            # The token is NEVER written to .git/config — it lives only in this
+            # subprocess invocation. On Mat's Mac the env var is normally unset,
+            # so the existing remote (with macOS keychain auth) is used.
+            push_target = ["origin", "main"]
+            token = os.environ.get("GITHUB_TOKEN", "").strip()
+            if token:
+                # Resolve the current origin URL and rewrite it with the token.
+                remote = subprocess.run(
+                    ["git", "-C", repo_dir, "remote", "get-url", "origin"],
+                    capture_output=True, text=True, check=True,
+                ).stdout.strip()
+                if remote.startswith("https://github.com/"):
+                    authed_url = remote.replace(
+                        "https://github.com/",
+                        f"https://x-access-token:{token}@github.com/",
+                        1,
+                    )
+                    push_target = [authed_url, "main"]
+
+            push = subprocess.run(
+                ["git", "-C", repo_dir, "push", *push_target],
+                capture_output=True, text=True, timeout=60,
+            )
+            if push.returncode != 0:
+                # Scrub the token out of any error message before printing.
+                err = push.stderr.strip()
+                if token:
+                    err = err.replace(token, "***GITHUB_TOKEN***")
+                print(f"\n! git push failed:\n{err}", file=sys.stderr)
+            else:
+                print(f"\n✓ Pushed to GitHub  ({msg})")
+                git_succeeded = True
     except subprocess.CalledProcessError as e:
-        print(f"\n! git step failed: {e.stderr.strip() if e.stderr else e}", file=sys.stderr)
+        err = e.stderr.strip() if e.stderr else str(e)
+        print(f"\n! git step failed: {err}", file=sys.stderr)
     except subprocess.TimeoutExpired:
         print("\n! git push timed out", file=sys.stderr)
+
+    # Safety net #2 — git failed somewhere along the way. Publish via the
+    # GitHub API instead so the live dashboard still gets the fresh HTML.
+    # (Skipped if git already succeeded, or if git confirmed nothing changed.)
+    if not git_succeeded and not git_no_op:
+        if not _push_via_github_api(repo_dir, msg):
+            print("  ! All push paths failed — dashboard not published.", file=sys.stderr)
 
 
 if __name__ == "__main__":
