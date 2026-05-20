@@ -1675,6 +1675,30 @@ def push_to_github(repo_dir):
         print(f"\n(No .git folder in {repo_dir} — skipping push.)")
         return
 
+    # Safety guard — NEVER publish a file containing git conflict markers.
+    #
+    # This is a hard backstop: index.html is regenerated from template.html on
+    # every run, so markers should be impossible. But this dashboard is a TV
+    # display where a silently broken file is highly visible, so we refuse to
+    # commit or push index.html if it contains a conflict marker for any reason.
+    # A genuine separator line is exactly seven <, =, or > characters; the
+    # `(?: |$)` anchor avoids false positives on decorative `========` rules.
+    index_path = os.path.join(repo_dir, "index.html")
+    try:
+        with open(index_path, encoding="utf-8") as fh:
+            index_html = fh.read()
+    except OSError as e:
+        print(f"\n! Could not read index.html for the conflict-marker check: {e}", file=sys.stderr)
+        return
+    if re.search(r"^(?:<{7}|={7}|>{7})(?: |$)", index_html, re.MULTILINE):
+        print(
+            "\n! ABORTING PUBLISH — conflict markers found in index.html.\n"
+            "  Refusing to commit or push a poisoned file to the live dashboard.\n"
+            "  Re-run the refresh to regenerate a clean index.html from template.html.",
+            file=sys.stderr,
+        )
+        return
+
     # Safety net #1 — clean up any orphan locks from a previous crashed run.
     _cleanup_stale_git_locks(git_dir)
 
@@ -1682,23 +1706,39 @@ def push_to_github(repo_dir):
     git_succeeded = False  # True after a successful `git push`
     git_no_op = False      # True if git determined there are no changes
 
-    # Safety net #0 — keep local main in sync with origin BEFORE we try to
-    # commit. Whenever the GitHub API fallback (safety net #2) succeeds,
-    # local main falls one commit behind, and the next run's `git push` is
-    # rejected as non-fast-forward. A rebase pull catches local up cleanly
-    # because index.html is the only file this script touches, so there is
-    # nothing to merge-conflict with. Failures here are non-fatal — the
-    # downstream push (or the API fallback) will surface the real error.
+    # Safety net #0 — fast-forward local main onto origin's tip WITHOUT merging.
+    #
+    # index.html is a fully regenerated artifact: every run rewrites it from
+    # template.html, so it must NEVER be three-way merged. The old code ran
+    # `git pull --rebase --autostash` here, which stashed our freshly rendered
+    # index.html, rebased local onto origin, then popped the stash. Because BOTH
+    # sides had rewritten the same single file, that pop produced a merge
+    # conflict and wrote literal <<<<<<< / ======= / >>>>>>> markers straight
+    # into index.html — which were then committed and published to the live TV
+    # (the 2026-05 outage). We now resync with `fetch` + `reset --mixed`, which:
+    #   • moves local main to exactly origin/main, so the next push is a clean
+    #     fast-forward (this is what fixes the non-fast-forward rejection that
+    #     happens after the API fallback in safety net #2 publishes to origin),
+    #   • leaves the freshly rendered index.html untouched in the working tree
+    #     (--mixed never touches working-tree files), and
+    #   • never merges and never unlinks files, so it also works inside the
+    #     Cowork sandbox, where unlink() in the repo is forbidden (which is why
+    #     the old `git reset --hard` self-heal failed there).
+    # Failures here are non-fatal — the API fallback overwrites origin directly.
     try:
         subprocess.run(
-            ["git", "-C", repo_dir, "pull", "--rebase", "--autostash", "origin", "main"],
+            ["git", "-C", repo_dir, "fetch", "origin", "main"],
+            check=True, capture_output=True, text=True, timeout=60,
+        )
+        subprocess.run(
+            ["git", "-C", repo_dir, "reset", "--mixed", "origin/main"],
             check=True, capture_output=True, text=True, timeout=60,
         )
     except subprocess.CalledProcessError as e:
         err = (e.stderr or str(e)).strip()
-        print(f"\n! git pull --rebase failed (continuing anyway): {err}", file=sys.stderr)
+        print(f"\n! git fetch/reset sync failed (continuing anyway): {err}", file=sys.stderr)
     except subprocess.TimeoutExpired:
-        print("\n! git pull --rebase timed out (continuing anyway)", file=sys.stderr)
+        print("\n! git fetch/reset sync timed out (continuing anyway)", file=sys.stderr)
 
     try:
         # Add the freshly rendered HTML
