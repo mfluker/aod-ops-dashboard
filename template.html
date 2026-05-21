@@ -395,10 +395,10 @@
 
         /* ===== Bonus-pace status (subtle) ===== */
         /* A thin colored outline on the card + a small pill. Deliberately quiet. */
-        .bonus-beating  { border: 1.5px solid rgba(31, 94, 88, 0.55); }
-        .bonus-ontrack  { border: 1.5px solid rgba(79, 157, 150, 0.55); }
-        .bonus-behind   { border: 1.5px solid rgba(199, 154, 31, 0.55); }
-        .bonus-offtrack { border: 1.5px solid rgba(199, 93, 80, 0.55); }
+        .bonus-beating  { border: 3.5px solid rgba(31, 94, 88, 0.55); }
+        .bonus-ontrack  { border: 3.5px solid rgba(79, 157, 150, 0.55); }
+        .bonus-behind   { border: 3.5px solid rgba(199, 154, 31, 0.55); }
+        .bonus-offtrack { border: 3.5px solid rgba(199, 93, 80, 0.55); }
 
         .bonus-pill {
             display: inline-flex;
@@ -505,7 +505,7 @@
             <!-- NETWORK LEAD TIMES -->
             <div class="category-col">
                 <div class="col-header">Network Lead Times <span class="note">R30</span></div>
-                <div class="stack has-3">
+                <div class="stack has-2">
                     <div class="metric-card">
                         <div class="label">Sold &rarr; Install (median)</div>
                         <div class="value">{{S2I_MEDIAN_VALUE}}</div>
@@ -520,6 +520,21 @@
                             <div class="indicator-row">{{S2I_PCT_INDICATOR}}</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- MANUFACTURING -->
+            <div class="category-col">
+                <div class="col-header">Manufacturing <span class="note">R30</span></div>
+                <div class="stack has-2">
+                    <div class="metric-card {{CLAIM_BONUS_CLASS}}">
+                        <div class="label">Claim Line Items %</div>
+                        <div class="value">{{CLAIM_PCT_VALUE}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{CLAIM_PCT_INDICATOR}}</div>
+                            {{CLAIM_BONUS_PILL}}
+                        </div>
+                    </div>
                     <!-- TAT (Order -> Ship): bonus metric, awaiting query/skill (Mat to wire). -->
                     <div class="metric-card {{TAT_BONUS_CLASS}}">
                         <div class="label">Order &rarr; Ship (TAT)</div>
@@ -527,21 +542,6 @@
                         <div class="card-foot">
                             {{TAT_BONUS_PILL}}
                             <div class="sublabel">{{TAT_SUBLABEL}}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- MANUFACTURING -->
-            <div class="category-col">
-                <div class="col-header">Manufacturing <span class="note">R30</span></div>
-                <div class="stack has-1">
-                    <div class="metric-card {{CLAIM_BONUS_CLASS}}">
-                        <div class="label">Claim Line Items %</div>
-                        <div class="value">{{CLAIM_PCT_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{CLAIM_PCT_INDICATOR}}</div>
-                            {{CLAIM_BONUS_PILL}}
                         </div>
                     </div>
                 </div>
