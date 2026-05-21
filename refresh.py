@@ -528,6 +528,55 @@ def revenue_in_window(start_date, end_date_inclusive):
     return _to_float(rows[0].get("rev"))
 
 
+def system_sales_rows(start_date, end_date_inclusive):
+    """
+    Row-level New-job sales over a window: one row per job with its first-deposit
+    date and order_total. Lets us compute the R30 headline, the R30-prior
+    comparison, AND the H1-YTD bonus pace from a SINGLE Canvas pull — caller
+    buckets the rows in Python instead of issuing three separate SUM queries.
+    Same filters/definition as revenue_in_window (new jobs, ILM-excluded,
+    anchored on first-deposit date).
+    """
+    end_exclusive = end_date_inclusive + datetime.timedelta(days=1)
+    sql = f"""
+    SELECT cp.first_payment AS dt, j.order_total AS amt
+    FROM job j
+    INNER JOIN franchisee f ON f.id = j.franchisee_id
+    INNER JOIN (
+        SELECT job_id, MIN(date_added) AS first_payment
+        FROM customer_payment
+        WHERE active = 'y'
+          {PAYMENT_FILTER_INCLUDE}
+          AND job_id IS NOT NULL
+        GROUP BY job_id
+    ) cp ON cp.job_id = j.id
+    WHERE 1=1
+      {JOB_FILTER}
+      AND j.job_type_id = 1   -- New orders only
+      {FRANCHISEE_FILTER}
+      AND cp.first_payment >= '{_fmt_dt(start_date)}'
+      AND cp.first_payment <  '{_fmt_dt(end_exclusive)}'
+    """
+    result = run_query(sql, output_format="json", max_rows=100000)
+    if result.get("error"):
+        print(f"  ! system_sales_rows query error: {result['error']}", file=sys.stderr)
+        return None
+    out = []
+    for r in result.get("rows") or []:
+        raw = (r.get("dt") or "")[:10]   # YYYY-MM-DD prefix of the timestamp
+        try:
+            d = datetime.date.fromisoformat(raw)
+        except ValueError:
+            continue
+        out.append((d, _to_float(r.get("amt"))))
+    return out
+
+
+def _sum_rows_in(rows, start_date, end_date_inclusive):
+    """Sum order_total amounts whose date falls in [start, end_inclusive]."""
+    return sum(amt for d, amt in rows if start_date <= d <= end_date_inclusive)
+
+
 def appointment_count(start_date, end_date_exclusive):
     """
     Count active, non-cancelled DESIGN appointments where date_and_time_starts is
@@ -1096,13 +1145,22 @@ def main():
     started = datetime.datetime.now()
     print(f"== AoD Operations Dashboard Refresh — {started:%Y-%m-%d %H:%M:%S} ==")
 
-    # 9a. Revenue R30 current + prior
-    print("→ Revenue (R30 current)...")
-    rev_cur = revenue_in_window(*w["r30_current"])
-    print(f"   = {fmt_currency(rev_cur)}")
-    print("→ Revenue (R30 prior)...")
-    rev_prv = revenue_in_window(*w["r30_prior"])
-    print(f"   = {fmt_currency(rev_prv)}")
+    # 9a. System Sales — ONE row-level pull that covers H1-YTD AND both R30
+    # windows, then bucket in Python. Replaces the old 3 separate SUM queries
+    # (R30 current + R30 prior + YTD) with a single Canvas fetch.
+    r30c_start, r30c_end = w["r30_current"]
+    r30p_start, r30p_end = w["r30_prior"]
+    pull_start = min(BONUS_PERIOD_START, r30p_start)
+    print("→ System Sales (single pull covering H1-YTD + both R30 windows)...")
+    ss_rows = system_sales_rows(pull_start, w["today"])
+    if ss_rows is None:
+        rev_cur = rev_prv = ss_ytd = None
+    else:
+        rev_cur = _sum_rows_in(ss_rows, r30c_start, r30c_end)
+        rev_prv = _sum_rows_in(ss_rows, r30p_start, r30p_end)
+        ss_ytd  = _sum_rows_in(ss_rows, BONUS_PERIOD_START, w["today"])
+    ss_pace = bonus_pace("system_sales", ss_ytd, today=w["today"])
+    print(f"   R30={fmt_currency(rev_cur)}  R30prior={fmt_currency(rev_prv)}  YTD={fmt_currency(ss_ytd)}  pace={fmt_currency(ss_pace)}")
 
     # 9b. Design Appointments — next 7 + prev 7
     next7_start, next7_end_excl = w["next7"]
@@ -1155,20 +1213,15 @@ def main():
     # 9f. Bonus pace (H1 2026) for the bonus-tied cards.
     # The card headline stays the rolling window above; these compute the
     # period-to-date pace that drives the subtle outline + status pill.
-    # Skill-based YTD calls (refacing) are skipped during the offline/emit pass
-    # since they don't use the query cache and would just burn time there.
-    offline = os.environ.get("AOD_CANVAS_OFFLINE", "") == "1"
-
-    print("→ Bonus pace — System Sales (H1 YTD)...")
-    ss_ytd = revenue_in_window(BONUS_PERIOD_START, w["today"])
-    ss_pace = bonus_pace("system_sales", ss_ytd, today=w["today"])
-    print(f"   YTD={fmt_currency(ss_ytd)}  pace={fmt_currency(ss_pace)}")
-
+    # (System Sales pace was already computed in 9a from the single pull.)
+    #
+    # NOTE: refacing YTD must run in BOTH passes. Like every other query in this
+    # pipeline it discovers itself into the MCP manifest during the offline/emit
+    # pass (run_query returns empty there but records the SQL so Claude fetches
+    # it), then reads the populated cache during the compute pass. Skipping the
+    # emit pass would mean the cache is never populated and the pill never fills.
     print("→ Bonus pace — Refacing Revenue (H1 YTD)...")
-    if offline:
-        rf_ytd = None
-    else:
-        rf_ytd = run_refacing_revenue(BONUS_PERIOD_START, w["today"])
+    rf_ytd = run_refacing_revenue(BONUS_PERIOD_START, w["today"])
     rf_pace = bonus_pace("refacing_revenue", rf_ytd, today=w["today"])
     print(f"   YTD={fmt_currency(rf_ytd)}  pace={fmt_currency(rf_pace)}")
 
@@ -1229,8 +1282,9 @@ def main():
         "{{S2I_PCT_INDICATOR}}": indicator_html(pct_change(s2i_pct_cur, s2i_pct_prv), lower_is_better=False),
 
         # TAT (Order → Ship) — bonus metric, placeholder until query/skill is wired.
+        # Dashed "pending" outline so it reads as a bonus card even with no data.
         "{{TAT_VALUE}}":        "—",
-        "{{TAT_BONUS_CLASS}}":  "",
+        "{{TAT_BONUS_CLASS}}":  "bonus-pending",
         "{{TAT_BONUS_PILL}}":   '<span class="bonus-pill neutral">No data yet</span>',
         "{{TAT_SUBLABEL}}":     "H1 bonus · target 18d",
 

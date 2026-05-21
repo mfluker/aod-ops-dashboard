@@ -43,11 +43,13 @@ TAT) invert the comparison.
 
 Mapping of bonus metric → dashboard card:
 - **System Sales** → the hero card (relabeled from "Total Network Revenue").
-  IMPORTANT ASSUMPTION: System Sales is computed with the existing
-  `revenue_in_window` query (new-job `order_total`, ILM-excluded, anchored on
-  first-deposit date), over Jan 1 → today for the pace. If the official System
-  Sales definition uses a different date anchor (e.g. sold date), adjust
-  `revenue_in_window` or add a dedicated query.
+  Computed by `system_sales_rows()` as a SINGLE row-level pull over the widest
+  window (min(Jan 1, R30-prior start) → today); `main()` then buckets the rows
+  in Python to derive the R30 headline, the R30-prior comparison, AND the H1-YTD
+  pace — one Canvas fetch instead of three SUM queries. IMPORTANT ASSUMPTION:
+  new-job `order_total`, ILM-excluded, anchored on first-deposit date. If the
+  official System Sales definition uses a different date anchor (e.g. sold date),
+  adjust the SQL in `system_sales_rows`.
 - **Refacing Revenue** → Refacing card. Pace uses `run_refacing_revenue` over
   Jan 1 → today (skipped during the offline/emit pass to save time).
 - **Claim %** → Manufacturing card. Pace = H1-YTD claim % (a ratio, not projected).
@@ -59,8 +61,10 @@ Mapping of bonus metric → dashboard card:
   negative per the PDF). Future work: build an EBITDA skill, then a card. It is a
   25%-weight bonus metric, so it belongs on the board once P&Ls are closed.
 
-Added cost: the bonus pace adds one Canvas query (System Sales YTD) and one
-refacing-skill run (Refacing YTD) per refresh, plus a cheap CSV re-read for claim.
+Added cost: System Sales now costs ONE row-level pull (down from 3 SUM queries).
+The bonus pace also adds one refacing-skill run (Refacing YTD) and a cheap CSV
+re-read for claim per refresh. All paths go through the Canvas MCP cache — no
+`canvas_query_runner.py` / credentials are used by the dashboard anymore.
 
 ## Token-budget notes (May 2026)
 - All sparkline trendlines were **removed** from `refresh.py` on 2026-05-21

@@ -105,9 +105,9 @@ replacements = {
     "{{S2I_PCT_VALUE}}":     fmt_pct(s2i_pct_cur),
     "{{S2I_PCT_INDICATOR}}": indicator_html(pct_change(s2i_pct_cur, s2i_pct_prv), lower_is_better=False),
 
-    # TAT placeholder
+    # TAT placeholder (dashed "pending" outline highlights it as a bonus card)
     "{{TAT_VALUE}}":       "—",
-    "{{TAT_BONUS_CLASS}}": "",
+    "{{TAT_BONUS_CLASS}}": "bonus-pending",
     "{{TAT_BONUS_PILL}}":  '<span class="bonus-pill neutral">No data yet</span>',
     "{{TAT_SUBLABEL}}":    "H1 bonus · target 18d",
 
