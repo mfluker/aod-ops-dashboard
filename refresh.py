@@ -16,15 +16,18 @@ What this script does (in order):
 
 Run it manually:
     python3 refresh.py
+(but the script will fail with a clear "no cached result" error unless the
+Canvas MCP cache has been populated first — that's the dashboard's design.)
+
+Scheduled refreshes run through the Cowork scheduled task "aod-ops-dashboard-
+refresh" (daily 9:30am local). The task prompt orchestrates the emit → fetch
+via Canvas MCP → compute flow described in canvas_data.py. The previous
+launchd/run.sh setup has been retired.
 
 Configure once (one-time setup):
-    - Canvas credentials live at ~/.canvas-query/credentials.txt (already set up).
-    - Set the environment variable AOD_MFG_SHEET_CSV_URL to the published-CSV URL
-      of the Mfg Partner Analysis Google Sheet.
-      (In Google Sheets: File → Share → Publish to web → CSV)
+    - Set AOD_MFG_SHEET_CSV_URL to the published-CSV URL of the Mfg Partner
+      Analysis Google Sheet. (In Google Sheets: File → Share → Publish to web → CSV)
     - Optionally set AOD_DASHBOARD_OUT to override where index.html is written.
-      Default is the same folder as this script. When we wire up GitHub Pages
-      we'll point this at the local clone of the repo.
 """
 
 import os
@@ -64,14 +67,16 @@ def _sandbox_glob(rel):
     matches = _glob.glob(f"/sessions/*/mnt/AoD_Cowork/{rel}")
     return matches[0] if matches else None
 
-_canvas_rel = "canvas-query-tmp/canvas-query/skills/canvas-query/scripts"
 _install_rel = "skills/install-vs-deposit/install_vs_deposit.py"
 _refacing_rel = "skills/refacing-sales/refacing_sales.py"
 
-CANVAS_QUERY_DIR_CANDIDATES = [
-    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + _canvas_rel,
-    os.path.join(_AOD_COWORK_ROOT, _canvas_rel),
-    _sandbox_glob(_canvas_rel) or "",
+# The shared Canvas MCP bridge (canvas_data.py) lives at the AoD_Cowork root
+# (parent of ops-dashboard/). Canvas data is pre-fetched into the MCP cache by
+# Claude before refresh.py runs — see the aod-ops-dashboard-refresh task.
+CANVAS_DATA_DIR_CANDIDATES = [
+    "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork",
+    _AOD_COWORK_ROOT,
+    (_sandbox_glob("canvas_data.py") or "").rsplit("/", 1)[0],
 ]
 INSTALL_VS_DEPOSIT_CANDIDATES = [
     "/Users/artofdrawersllc/Documents/Claude/Projects/AoD_Cowork/" + _install_rel,
@@ -100,16 +105,17 @@ _run_query_cached = None
 
 def run_query(*args, **kwargs):
     """
-    Lazy-loading wrapper for canvas_query_runner.run_query. Imports the runner
-    the first time it's called, so test_render.py (which only uses formatting
-    helpers) doesn't need to have `requests`/`bs4` installed.
+    Lazy-loading wrapper for the shared Canvas MCP bridge (canvas_data.run_query).
+    Canvas data is pre-fetched into the MCP cache by Claude before refresh.py runs
+    (see the aod-ops-dashboard-refresh scheduled task). Imported lazily so
+    test_render.py (which only uses formatting helpers) doesn't need the bridge.
     """
     global _run_query_cached
     if _run_query_cached is None:
-        for d in CANVAS_QUERY_DIR_CANDIDATES:
-            if os.path.exists(d) and d not in sys.path:
+        for d in CANVAS_DATA_DIR_CANDIDATES:
+            if d and os.path.exists(d) and d not in sys.path:
                 sys.path.insert(0, d)
-        from canvas_query_runner import run_query as _rq
+        from canvas_data import run_query as _rq
         _run_query_cached = _rq
     return _run_query_cached(*args, **kwargs)
 
@@ -419,12 +425,29 @@ def date_windows(today=None):
 # -----------------------------------------------------------------------------
 
 # Common franchisee filters — keep production locations only.
+# These mirror canvas_data.STANDARD_FRANCHISEE_FILTER and now also exclude
+# franchisee_id=1 (ILM, internal lab) per Canvas dev guidance (May 2026).
+# See ../CANVAS-MCP-RULES.md.
 FRANCHISEE_FILTER = """
   AND f.active = 'y'
   AND f.exclude_from_reports = 'n'
+  AND f.id != 1                              -- ILM (internal lab) — excluded from prod reporting
   AND f.display_name NOT LIKE '%Test%'
   AND f.display_name NOT LIKE '%Training%'
 """
+
+# Job filter — mirrors canvas_data.STANDARD_JOB_FILTER. Excludes deleted jobs
+# (current_status_id=19), which previous versions of these queries did NOT
+# filter out, slightly overstating revenue and counts vs. what Canvas shows.
+JOB_FILTER = """
+  AND j.active = 'y'
+  AND j.current_status_id != 19              -- exclude deleted jobs
+"""
+
+# Customer-payment filter — mirrors canvas_data.STANDARD_PAYMENT_FILTER.
+# include='y' is required on customer_payment when summing/counting; without
+# it, deposit totals overshoot what Canvas reports.
+PAYMENT_FILTER_INCLUDE = "AND include = 'y'"
 
 
 def _fmt_dt(d):
@@ -439,6 +462,10 @@ def revenue_in_window(start_date, end_date_inclusive):
     Applies the standard AoD exclusions (see reference_aod_canvas_conventions).
     """
     end_exclusive = end_date_inclusive + datetime.timedelta(days=1)
+    # KPI-TOOL TODO: when admin approval lands, replace this whole query with
+    # mcp__<canvas>__get_revenue (date_start, date_end). The KPI tool already
+    # bakes in the franchisee/job/payment filters and is one MCP call vs.
+    # this multi-table aggregation. See ../CANVAS-MCP-RULES.md.
     sql = f"""
     SELECT COALESCE(SUM(j.order_total), 0) AS rev
     FROM job j
@@ -446,10 +473,13 @@ def revenue_in_window(start_date, end_date_inclusive):
     INNER JOIN (
         SELECT job_id, MIN(date_added) AS first_payment
         FROM customer_payment
-        WHERE active = 'y' AND job_id IS NOT NULL
+        WHERE active = 'y'
+          {PAYMENT_FILTER_INCLUDE}
+          AND job_id IS NOT NULL
         GROUP BY job_id
     ) cp ON cp.job_id = j.id
-    WHERE j.active = 'y'
+    WHERE 1=1
+      {JOB_FILTER}
       AND j.job_type_id = 1   -- New orders only
       {FRANCHISEE_FILTER}
       AND cp.first_payment >= '{_fmt_dt(start_date)}'
@@ -471,6 +501,8 @@ def appointment_count(start_date, end_date_exclusive):
     in [start, end_exclusive). Design = appointment_type_id 4 (Designer Appt.)
     or 30 (Self Gen Design Appt).
     """
+    # KPI-TOOL TODO: replace with mcp__<canvas>__get_appointment_count once
+    # admin approval lands. Single MCP call vs. this aggregation.
     sql = f"""
     SELECT COUNT(*) AS cnt
     FROM appointment a
@@ -492,6 +524,9 @@ def appointment_count(start_date, end_date_exclusive):
 
 def top_locations_for_appts(start_date, end_date_exclusive, limit=3):
     """Top N locations by design-appointment count in the window. Honors ties at the cutoff."""
+    # KPI-TOOL TODO: no direct KPI tool — closest is list_franchisee +
+    # get_appointment_count per franchisee, which would be more MCP calls than
+    # this single GROUP BY. Custom SQL is the right call here.
     sql = f"""
     SELECT f.display_name AS location, COUNT(*) AS cnt
     FROM appointment a
@@ -521,6 +556,7 @@ def top_designers_for_appts(start_date, end_date_exclusive, limit=3):
     Each designer's "home" franchisee (the one for the majority of their appts
     in the window) is returned so we can render their location's airport code.
     """
+    # KPI-TOOL TODO: no direct "appointments by designer" KPI. Custom SQL stays.
     sql = f"""
     SELECT TRIM(CONCAT(COALESCE(su.firstname, ''), ' ', COALESCE(su.lastname, ''))) AS designer,
            f.display_name AS location,
@@ -537,9 +573,9 @@ def top_designers_for_appts(start_date, end_date_exclusive, limit=3):
       {FRANCHISEE_FILTER}
     GROUP BY su.id, su.firstname, su.lastname, f.id, f.display_name
     ORDER BY cnt DESC, su.lastname ASC
-    LIMIT 200
+    LIMIT 30
     """
-    result = run_query(sql, output_format="json", max_rows=200)
+    result = run_query(sql, output_format="json", max_rows=30)
     if result.get("error"):
         print(f"  ! top designers error: {result['error']}", file=sys.stderr)
         return []
@@ -606,7 +642,14 @@ def run_install_vs_deposit(start_date, end_date_inclusive):
     Spawn the install_vs_deposit.py skill, parse its CSV, return
     (median_days, pct_under_10_weeks, n_rows).
     """
-    out_csv = f"/tmp/aod_ivd_{start_date}_to_{end_date_inclusive}.csv"
+    # Write the intermediate CSV next to the dashboard (on the same mount as
+    # everything else) rather than to /tmp. The Cowork sandbox's /tmp is a
+    # throwaway, per-invocation filesystem; if a write or the read-back below
+    # ever fails there, the Sold-to-Install cards silently blank out. .cache/
+    # is gitignored and always writable.
+    cache_dir = os.path.join(HERE, ".cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    out_csv = os.path.join(cache_dir, f"aod_ivd_{start_date}_to_{end_date_inclusive}.csv")
     cmd = [
         "python3", INSTALL_VS_DEPOSIT_SCRIPT,
         "--start", str(start_date),
@@ -954,77 +997,6 @@ def shipping_window_summary(start_date, end_date_inclusive):
     }
 
 
-def shipping_trend_5x14(today=None, anchor_date=None):
-    """
-    Five R14 buckets for the three shipping metrics, oldest → newest.
-    Loads the past 70 days of shipments once and buckets in Python.
-
-    `anchor_date` is the end of the most recent (rightmost) bucket. When
-    invoices lag the calendar, pass the latest ship date so the trend stays
-    aligned with the headline R14 window. Defaults to `today` for safety.
-
-    Returns (cost_per_lb_trend, pallet_pct_trend, surcharge_pct_trend).
-    """
-    today = today or datetime.date.today()
-    anchor = anchor_date or today
-    start = anchor - datetime.timedelta(days=70)
-    end = anchor
-    load = _get_shipping_loader()
-    try:
-        shipments = load(start_date=str(start), end_date=str(end))
-    except Exception as e:
-        print(f"  ! shipping trend load error: {e}", file=sys.stderr)
-        return [], [], []
-    if not shipments:
-        return [], [], []
-
-    # buckets[i] = list of shipment dicts; bucket 0 = newest 14 days (relative to anchor),
-    # bucket 4 = oldest 14 days
-    buckets = [[] for _ in range(5)]
-    for s in shipments:
-        sd_raw = s.get("ship_date") or ""
-        try:
-            sd = datetime.date.fromisoformat(sd_raw)
-        except ValueError:
-            continue
-        days_from_anchor = (anchor - sd).days
-        idx = _bucket_index(days_from_anchor, 14)
-        if 0 <= idx < 5:
-            buckets[idx].append(s)
-
-    cost_buckets = []
-    pallet_buckets = []
-    surch_buckets = []
-    for group in buckets:
-        if not group:
-            cost_buckets.append(None)
-            pallet_buckets.append(None)
-            surch_buckets.append(None)
-            continue
-        tc = sum(s.get("total") or 0 for s in group)
-        tw = sum(s.get("weight") or 0 for s in group)
-        np_p = sum(1 for s in group if s.get("is_pallet"))
-        nt = len(group)
-        ts = 0.0
-        fs = 0.0
-        for s in group:
-            for sc in s.get("surcharges") or []:
-                amt = sc.get("amount") or 0
-                ts += amt
-                if _is_fuel_surcharge(sc.get("type")):
-                    fs += amt
-        cost_buckets.append((tc / tw) if tw > 0 else None)
-        pallet_buckets.append((np_p / nt * 100.0) if nt > 0 else None)
-        surch_buckets.append(((ts - fs) / tc * 100.0) if tc > 0 else None)
-
-    # newest is index 0 — reverse so newest is rightmost (oldest → newest)
-    return (
-        list(reversed(cost_buckets)),
-        list(reversed(pallet_buckets)),
-        list(reversed(surch_buckets)),
-    )
-
-
 def _fmt_ship_date_span(earliest, latest):
     """Render a 'Ships M/D – M/D' string from two YYYY-MM-DD strings."""
     if not earliest or not latest:
@@ -1038,279 +1010,14 @@ def _fmt_ship_date_span(earliest, latest):
 
 
 # -----------------------------------------------------------------------------
-# 7b. TRENDLINES — five-period history for each metric (for background sparklines)
-# -----------------------------------------------------------------------------
-#
-# The values returned are in OLDEST → NEWEST order so the sparkline reads left to right.
-# We try to keep these fast — single SQL queries where possible, and single skill-script
-# runs for the slow ones (install-vs-deposit, refacing-sales), then bucket in Python.
-# When a backfill fails, we return [] and the sparkline just isn't drawn.
-
-
-def _bucket_index(days_ago, bucket_size):
-    """Map a "days_ago" count into a 0-based bucket index (0 = newest)."""
-    if days_ago < 0:
-        return -1
-    return days_ago // bucket_size
-
-
-def revenue_trend_5x30(today=None):
-    """Five R30 buckets of total revenue, oldest → newest."""
-    today = today or datetime.date.today()
-    end_excl = today
-    start_excl = today - datetime.timedelta(days=150)
-
-    # Build a single SQL with CASE-based bucketing
-    bucket_cases = []
-    for i in range(5):
-        # newest bucket (i=0) is days 0-30 ago; oldest (i=4) is 120-150 ago
-        b_end = today - datetime.timedelta(days=30 * i)
-        b_start = b_end - datetime.timedelta(days=30)
-        bucket_cases.append(
-            f"WHEN cp.first_payment >= '{_fmt_dt(b_start)}' AND cp.first_payment < '{_fmt_dt(b_end)}' THEN {i}"
-        )
-    case_block = " ".join(bucket_cases)
-
-    sql = f"""
-    SELECT bucket, COALESCE(SUM(rev), 0) AS rev FROM (
-        SELECT CASE {case_block} ELSE -1 END AS bucket, j.order_total AS rev
-        FROM job j
-        INNER JOIN franchisee f ON f.id = j.franchisee_id
-        INNER JOIN (
-            SELECT job_id, MIN(date_added) AS first_payment
-            FROM customer_payment
-            WHERE active = 'y' AND job_id IS NOT NULL
-            GROUP BY job_id
-        ) cp ON cp.job_id = j.id
-        WHERE j.active = 'y'
-          AND j.job_type_id = 1   -- New orders only
-          {FRANCHISEE_FILTER}
-          AND cp.first_payment >= '{_fmt_dt(start_excl)}'
-          AND cp.first_payment <  '{_fmt_dt(end_excl)}'
-    ) bucketed
-    WHERE bucket >= 0
-    GROUP BY bucket
-    """
-    result = run_query(sql, output_format="json", max_rows=20)
-    if result.get("error"):
-        return []
-    rows = result.get("rows") or []
-    by_bucket = {_to_int(r["bucket"]): _to_float(r["rev"]) for r in rows}
-    # Oldest (idx 4) → newest (idx 0)
-    return [by_bucket.get(4 - i, 0.0) for i in range(5)]
-
-
-def appointments_trend_5x7(today=None):
-    """
-    Five R7 buckets of completed design appointments, oldest → newest.
-    Used as the trend backdrop for the 'Next 7 Days' card — past 35 days of activity.
-    """
-    today = today or datetime.date.today()
-    end_excl = today
-    start_excl = today - datetime.timedelta(days=35)
-
-    bucket_cases = []
-    for i in range(5):
-        b_end = today - datetime.timedelta(days=7 * i)
-        b_start = b_end - datetime.timedelta(days=7)
-        bucket_cases.append(
-            f"WHEN a.date_and_time_starts >= '{_fmt_dt(b_start)}' AND a.date_and_time_starts < '{_fmt_dt(b_end)}' THEN {i}"
-        )
-    case_block = " ".join(bucket_cases)
-
-    sql = f"""
-    SELECT bucket, COUNT(*) AS cnt FROM (
-        SELECT CASE {case_block} ELSE -1 END AS bucket
-        FROM appointment a
-        INNER JOIN franchisee f ON f.id = a.franchisee_id
-        WHERE a.appointment_type_id IN (4, 30)
-          AND a.cancelled = 'n'
-          AND a.active = 'y'
-          {FRANCHISEE_FILTER}
-          AND a.date_and_time_starts >= '{_fmt_dt(start_excl)}'
-          AND a.date_and_time_starts <  '{_fmt_dt(end_excl)}'
-    ) bucketed
-    WHERE bucket >= 0
-    GROUP BY bucket
-    """
-    result = run_query(sql, output_format="json", max_rows=20)
-    if result.get("error"):
-        return []
-    rows = result.get("rows") or []
-    by_bucket = {_to_int(r["bucket"]): _to_int(r["cnt"]) for r in rows}
-    return [by_bucket.get(4 - i, 0) for i in range(5)]
-
-
-def refacing_trend_5x7(today=None):
-    """
-    Five R7 buckets of refacing data, oldest → newest.
-    Run refacing-sales ONCE for a 35-day window, then bucket the CSV.
-    Returns (revenue_buckets, job_count_buckets).
-    """
-    today = today or datetime.date.today()
-    start = today - datetime.timedelta(days=35)
-    end_incl = today - datetime.timedelta(days=1)
-
-    cmd = ["python3", REFACING_SALES_SCRIPT, str(start), str(end_incl)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
-    if proc.returncode != 0:
-        print(f"  ! refacing trend skill failed: {proc.stderr[:300]}", file=sys.stderr)
-        return [], []
-
-    csv_path = _refacing_csv_path(start, end_incl)
-    if not os.path.exists(csv_path):
-        return [], []
-
-    rev_buckets = [0.0] * 5
-    job_buckets = [0] * 5
-    with open(csv_path) as fh:
-        for row in csv.DictReader(fh):
-            jid = (row.get("job_id") or "").strip().upper()
-            if jid == "TOTAL":
-                continue
-            try:
-                rev = float(row.get("revenue") or 0)
-            except ValueError:
-                rev = 0.0
-            date_raw = (row.get("date_added") or "").strip()
-            try:
-                dt = datetime.date.fromisoformat(date_raw)
-            except ValueError:
-                continue
-            days_ago = (today - dt).days
-            idx = _bucket_index(days_ago, 7)
-            if 0 <= idx < 5:
-                rev_buckets[idx] += rev
-                job_buckets[idx] += 1
-    # buckets[0] is newest; reverse so newest is rightmost
-    return list(reversed(rev_buckets)), list(reversed(job_buckets))
-
-
-def install_trend_5x30(today=None):
-    """
-    Five R30 buckets of install-vs-deposit results, oldest → newest.
-    Returns (median_days_per_bucket, pct_under_10w_per_bucket).
-
-    NOTE: This calls the install-vs-deposit skill with a 150-day window. The
-    skill's chain-dedupe is window-scoped, so values here can drift slightly
-    from the per-window R30 numbers — fine for a faint background trend, but
-    not used for the headline figures (those still use the dedicated runs).
-    """
-    today = today or datetime.date.today()
-    start = today - datetime.timedelta(days=150)
-    end_incl = today - datetime.timedelta(days=1)
-
-    out_csv = f"/tmp/aod_ivd_trend_{start}_to_{end_incl}.csv"
-    cmd = [
-        "python3", INSTALL_VS_DEPOSIT_SCRIPT,
-        "--start", str(start),
-        "--end", str(end_incl),
-        "--output", out_csv,
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=360)
-    if proc.returncode != 0:
-        # Bumped from [:300] to [:3000] (see note on install_vs_deposit failure above).
-        print(f"  ! install trend skill failed (rc={proc.returncode}): {proc.stderr[:3000]}", file=sys.stderr)
-        return [], []
-
-    days_buckets = [[] for _ in range(5)]
-    under_buckets = [[0, 0] for _ in range(5)]  # [under_count, total]
-
-    total_rows = 0
-    try:
-        with open(out_csv) as fh:
-            for row in csv.DictReader(fh):
-                total_rows += 1
-                raw = (row.get("Days_Deposit_To_Install") or "").strip()
-                inst_raw = (row.get("Install_Date") or "").strip().split(" ")[0]
-                if not raw or not inst_raw:
-                    continue
-                try:
-                    d = int(raw)
-                    inst_dt = datetime.date.fromisoformat(inst_raw)
-                except ValueError:
-                    continue
-                if d < 0:
-                    continue
-                idx = _bucket_index((today - inst_dt).days, 30)
-                if not (0 <= idx < 5):
-                    continue
-                days_buckets[idx].append(d)
-                under_buckets[idx][1] += 1
-                if (row.get("Under_10_Weeks") or "").strip() == "Y":
-                    under_buckets[idx][0] += 1
-    except FileNotFoundError:
-        print(f"  ! install trend CSV not found at {out_csv}", file=sys.stderr)
-        return [], []
-
-    if total_rows == 0:
-        # SILENT-FAILURE GUARD — script ran with rc=0 but produced an empty CSV.
-        print(
-            f"  ! install trend produced an EMPTY CSV at {out_csv} (no data rows). "
-            f"This usually means the Canvas query returned 0 rows.",
-            file=sys.stderr,
-        )
-        if proc.stdout:
-            print(f"    stdout tail: {proc.stdout[-400:].strip()}", file=sys.stderr)
-        if proc.stderr:
-            print(f"    stderr tail: {proc.stderr[-400:].strip()}", file=sys.stderr)
-
-    medians = []
-    pcts = []
-    for vals, (u, t) in zip(days_buckets, under_buckets):
-        if vals:
-            s = sorted(vals)
-            mid = len(s) // 2
-            med = s[mid] if len(s) % 2 == 1 else (s[mid - 1] + s[mid]) / 2.0
-        else:
-            med = None
-        medians.append(med)
-        pcts.append((u / t * 100.0) if t else None)
-    # Newest is index 0 — reverse so newest is rightmost
-    return list(reversed(medians)), list(reversed(pcts))
-
-
-def claim_trend_5x30(today=None):
-    """Five R30 buckets of Claim Line Items %, oldest → newest. Returns []."""
-    if not MFG_SHEET_CSV_URL:
-        return []
-    today = today or datetime.date.today()
-    try:
-        req = Request(MFG_SHEET_CSV_URL, headers={"User-Agent": "AoD-Dashboard/1.0"})
-        resp = urlopen(req, timeout=30)
-        content = resp.read().decode("utf-8", errors="replace")
-    except Exception:
-        return []
-
-    buckets = [[0, 0] for _ in range(5)]  # [claim_items, total_items] per bucket
-
-    for row in csv.DictReader(io.StringIO(content)):
-        order_type = (row.get("Type") or "").strip()
-        if order_type not in ("Claim", "Reorder", "Job"):
-            continue
-        dt = _parse_mfg_date(row.get("Order Date"), today)
-        if dt is None:
-            continue
-        days_ago = (today - dt).days
-        idx = _bucket_index(days_ago, 30)
-        if not (0 <= idx < 5):
-            continue
-        raw_li = (row.get("Line Items Count") or "").strip()
-        try:
-            li = int(float(raw_li)) if raw_li else 0
-        except ValueError:
-            li = 0
-        buckets[idx][1] += li
-        if order_type == "Claim":
-            buckets[idx][0] += li
-
-    pcts = [(c / t * 100.0) if t else None for c, t in buckets]
-    return list(reversed(pcts))
-
-
-# -----------------------------------------------------------------------------
 # 8. RENDER
 # -----------------------------------------------------------------------------
+#
+# NOTE: Per-metric trendline functions (revenue/appointments/refacing/install/
+# claim/shipping _trend_5x*) were removed 2026-05-21 — they were disabled for
+# token budget and never called. The sparkline TOKENS still render via
+# sparkline_svg([]) (a flat line). The planned weekly deep-report skill is the
+# right place to compute real trend history; revive from git history if needed.
 
 def _esc(s):
     """Minimal HTML escape."""
@@ -1413,19 +1120,14 @@ def main():
         total_cur is None or total_prv is None or total_cur < 10 or total_prv < 10
     )
 
-    # 9f. Trendlines (5 prior periods) — these power the faint background curves
-    print("→ Trendline: revenue (5 × R30)...")
-    rev_trend = revenue_trend_5x30(today=w["today"])
-    print(f"   = {rev_trend}")
-
-    print("→ Trendline: appointments (5 × R7 lookback)...")
-    appt_trend = appointments_trend_5x7(today=w["today"])
-    print(f"   = {appt_trend}")
-
-    print("→ Trendline: refacing (5 × R7)...")
-    rf_trend, rfj_trend = refacing_trend_5x7(today=w["today"])
-    print(f"   revenue trend = {rf_trend}")
-    print(f"   jobs trend = {rfj_trend}")
+    # 9f. Trendlines DISABLED for token budget (2026-05-21).
+    # Each sparkline gets an empty series, so sparkline_svg([]) draws nothing.
+    # The trend-computing functions were REMOVED from this file (they were never
+    # called); recover them from git history if the planned weekly deep-report
+    # skill needs real five-period history.
+    rev_trend = []
+    appt_trend = []
+    rf_trend, rfj_trend = [], []
 
     # Shipping (R14 — Mat's choice to match WWEX biweekly invoice cycle).
     # Anchor the window to the most recent ship date in the invoices rather than
@@ -1441,20 +1143,10 @@ def main():
     print("→ Shipping (R14 prior)...")
     ship_prv = shipping_window_summary(*r14_prior) or {}
     print(f"   cost/lb={ship_prv.get('cost_per_lb')}  pallet%={ship_prv.get('pallet_pct')}  surch%={ship_prv.get('surcharge_pct_ex_fuel')}  n={ship_prv.get('n_shipments')}  ships {ship_prv.get('earliest_ship')}→{ship_prv.get('latest_ship')}")
-    print("→ Trendline: shipping (5 × R14)...")
-    cost_lb_trend, pallet_trend, surch_trend = shipping_trend_5x14(today=w["today"], anchor_date=ship_anchor)
-    print(f"   cost/lb trend = {cost_lb_trend}")
-    print(f"   pallet trend = {pallet_trend}")
-    print(f"   surcharge trend = {surch_trend}")
-
-    print("→ Trendline: install-vs-deposit (5 × R30)...")
-    s2i_med_trend, s2i_pct_trend = install_trend_5x30(today=w["today"])
-    print(f"   median trend = {s2i_med_trend}")
-    print(f"   pct<10w trend = {s2i_pct_trend}")
-
-    print("→ Trendline: claim % (5 × R30)...")
-    claim_trend = claim_trend_5x30(today=w["today"])
-    print(f"   = {claim_trend}")
+    # Shipping, install, and claim trendlines DISABLED (see note above).
+    cost_lb_trend, pallet_trend, surch_trend = [], [], []
+    s2i_med_trend, s2i_pct_trend = [], []
+    claim_trend = []
 
     # 9g. Indicator HTML for every metric
     last_updated = datetime.datetime.now().strftime("%a %b %-d · %-I:%M %p ET")

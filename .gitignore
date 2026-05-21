@@ -4,6 +4,13 @@
 
 # Generated previews / scratch
 preview.html
+.cache/
+.aod_workdir
+.write_test.old
+*.lock.old
+
+# Run artifacts / logs — never publish these to the public Pages repo
+logs/
 
 # Python cache
 __pycache__/
