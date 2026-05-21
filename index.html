@@ -28,6 +28,12 @@
             --down-med:   #c75d50;
             --down-deep:  #963a2e;
             --neutral:    #9aa0a6;
+
+            /* Bonus-pace tiers (kept deliberately muted — the board should not shout) */
+            --bonus-beating:  #1f5e58;  /* 115%+  : way ahead */
+            --bonus-ontrack:  #4f9d96;  /* 100-114%: on track */
+            --bonus-behind:   #c79a1f;  /* 85-99% : behind */
+            --bonus-offtrack: #c75d50;  /* <85%   : off track */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -130,15 +136,6 @@
             box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
             min-height: 0;
         }
-        .card > *:not(.sparkline-bg) { position: relative; z-index: 2; }
-
-        .sparkline-bg {
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            pointer-events: none;
-        }
-        .sparkline-bg svg { width: 100%; height: 100%; display: block; }
 
         .card .label {
             font-size: 10px;
@@ -154,7 +151,15 @@
             letter-spacing: 0.04em;
         }
 
-        /* Revenue hero */
+        /* The metric value is the visual center of every card. */
+        .card-foot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Revenue hero (System Sales) — centered */
         .revenue-hero {
             text-align: center;
             align-items: center;
@@ -175,7 +180,12 @@
             font-size: 17px;
         }
 
-        /* Appointments */
+        /* Appointments — centered */
+        .appointments {
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+        }
         .appointments .big-number {
             font-size: 72px;
             font-weight: 800;
@@ -307,20 +317,21 @@
         .category-col .stack.has-3 { grid-template-rows: 1fr 1fr 1fr; }
         .category-col .stack.has-1 { grid-template-rows: 1fr; }
 
+        /* Metric card — number centered horizontally + vertically via 3-row grid. */
         .metric-card {
             background: var(--bg-card);
             border-radius: 12px;
             border: 1px solid var(--border-soft);
-            padding: 10px 14px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            padding: 8px 14px;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            justify-items: center;
+            text-align: center;
             position: relative;
             overflow: hidden;
             min-height: 0;
             box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
         }
-        .metric-card > *:not(.sparkline-bg) { position: relative; z-index: 2; }
         .metric-card .label {
             font-size: 10px;
             font-weight: 700;
@@ -331,34 +342,29 @@
         .metric-card .sublabel {
             font-size: 10px;
             color: var(--text-secondary);
-            margin-top: 0;
             letter-spacing: 0.04em;
         }
         .metric-card .value {
+            align-self: center;
             font-size: 40px;
             font-weight: 800;
             line-height: 1;
-            margin-top: 2px;
             letter-spacing: -0.03em;
             color: var(--aod-navy);
         }
-        .metric-card .indicator-row {
-            margin-top: 3px;
-            font-size: 13px;
-        }
+        .metric-card .indicator-row { font-size: 13px; }
         .metric-card .ship-span {
             font-size: 9px;
             color: var(--text-secondary);
             font-weight: 600;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            margin-top: 2px;
         }
         /* Manufacturing column has only 1 card — make it look intentionally large */
         .category-col .stack.has-1 .metric-card .value { font-size: 60px; }
-        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; margin-top: 6px; }
+        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; }
 
-        /* ===== Indicators ===== */
+        /* ===== Period-over-period indicators ===== */
         .indicator {
             display: inline-flex;
             align-items: center;
@@ -386,6 +392,44 @@
             letter-spacing: 0.04em;
             text-transform: uppercase;
         }
+
+        /* ===== Bonus-pace status (subtle) ===== */
+        /* A thin colored outline on the card + a small pill. Deliberately quiet. */
+        .bonus-beating  { border: 3.5px solid rgba(31, 94, 88, 0.55); }
+        .bonus-ontrack  { border: 3.5px solid rgba(79, 157, 150, 0.55); }
+        .bonus-behind   { border: 3.5px solid rgba(199, 154, 31, 0.55); }
+        .bonus-offtrack { border: 3.5px solid rgba(199, 93, 80, 0.55); }
+        /* Bonus metric that has no data yet (e.g. TAT) — dashed outline so it's
+           visibly grouped with the other bonus cards without faking a tier. */
+        .bonus-pending  { border: 3.5px dashed rgba(154, 160, 166, 0.50); }
+
+        .bonus-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .bonus-pill::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.85;
+        }
+        .bonus-pill.beating  { color: var(--bonus-beating);  background: rgba(31, 94, 88, 0.10); }
+        .bonus-pill.ontrack  { color: var(--bonus-ontrack);  background: rgba(79, 157, 150, 0.12); }
+        .bonus-pill.behind   { color: var(--bonus-behind);   background: rgba(199, 154, 31, 0.14); }
+        .bonus-pill.offtrack { color: var(--bonus-offtrack); background: rgba(199, 93, 80, 0.12); }
+        .bonus-pill.neutral  { color: var(--neutral); background: rgba(154, 160, 166, 0.10); font-weight: 600; }
+        /* Hero pill is a touch larger to match the big number, still subtle. */
+        .revenue-hero .bonus-pill { font-size: 11px; padding: 3px 11px; }
     </style>
 </head>
 <body>
@@ -396,37 +440,44 @@
             <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
             <div class="updated">
                 Last refreshed<br>
-                <span class="stamp">Thu May 21 · 1:10 PM ET</span>
+                <span class="stamp">Thu May 21 · 9:44 PM ET</span>
             </div>
         </div>
 
         <!-- ===== AOD NETWORK ===== -->
         <div class="aod-network">
             <div class="section-label">AoD Network</div>
-            <div class="card revenue-hero">
-                <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 1200 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M144.0,150.0 C182.0,150.0 296.0,150.0 372.0,150.0 C448.0,150.0 524.0,150.0 600.0,150.0 C676.0,150.0 752.0,150.0 828.0,150.0 C904.0,150.0 1018.0,150.0 1056.0,150.0" fill="none" stroke="#88b6b1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.32"/></svg></div>
-                <div class="label">Total Network Revenue · Rolling 30 Days</div>
-                <div class="value">$0</div>
-                <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+            <div class="card revenue-hero bonus-ontrack">
+                <div class="label">System Sales · Rolling 30 Days</div>
+                <div class="value">$1,172,757</div>
+                <div class="card-foot">
+                    <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -20.9%<span class="vs-label">vs prior</span></span></div>
+                    <span class="bonus-pill ontrack">On Track</span>
+                </div>
             </div>
             <div class="row-bottom">
                 <div class="card appointments">
-                    <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M72.0,200.0 C91.0,200.0 148.0,200.0 186.0,200.0 C224.0,200.0 262.0,200.0 300.0,200.0 C338.0,200.0 376.0,200.0 414.0,200.0 C452.0,200.0 509.0,200.0 528.0,200.0" fill="none" stroke="#88b6b1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.42"/></svg></div>
                     <div class="label">Design Appointments · Next 7 Days</div>
-                    <div class="big-number">0</div>
-                    <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                    <div class="big-number">100</div>
+                    <div class="card-foot">
+                        <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -10.7%<span class="vs-label">vs prior</span></span></div>
+                    </div>
                 </div>
                 <div class="card top-lists">
                     <div>
                         <h3>Top Locations</h3>
                         <ol>
-                            <li><span class="name" style="color:var(--text-secondary)">No appointments scheduled</span><span class="count"></span></li>
+                            <li><span class="name">Art of Drawers Raleigh</span><span class="count">11 appts</span></li>
+            <li><span class="name">Art of Drawers Portland</span><span class="count">9 appts</span></li>
+            <li><span class="name">Art of Drawers Phoenix</span><span class="count">6 appts</span></li>
                         </ol>
                     </div>
                     <div>
                         <h3>Top Designers</h3>
                         <ol>
-                            <li><span class="name" style="color:var(--text-secondary)">No appointments scheduled</span><span class="count"></span></li>
+                            <li><span class="name">Dave Feehrer</span><span class="iata">RAL</span><span class="count">6 appts</span></li>
+            <li><span class="name">Kara Irish</span><span class="iata">MCO</span><span class="count">5 appts</span></li>
+            <li><span class="name">Melissa Bruce</span><span class="iata">PHX</span><span class="count">5 appts</span></li>
                         </ol>
                     </div>
                 </div>
@@ -440,17 +491,20 @@
             <div class="category-col">
                 <div class="col-header">Refacing <span class="note">R7</span></div>
                 <div class="stack has-2">
-                    <div class="metric-card">
-                        <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M36.0,100.0 C45.5,100.0 74.0,100.0 93.0,100.0 C112.0,100.0 131.0,100.0 150.0,100.0 C169.0,100.0 188.0,100.0 207.0,100.0 C226.0,100.0 254.5,100.0 264.0,100.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/></svg></div>
+                    <div class="metric-card ">
                         <div class="label">Refacing Revenue</div>
-                        <div class="value">$0</div>
-                        <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        <div class="value">—</div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                            
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M36.0,100.0 C45.5,100.0 74.0,100.0 93.0,100.0 C112.0,100.0 131.0,100.0 150.0,100.0 C169.0,100.0 188.0,100.0 207.0,100.0 C226.0,100.0 254.5,100.0 264.0,100.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/></svg></div>
                         <div class="label">Refacing Jobs</div>
-                        <div class="value">0</div>
-                        <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        <div class="value">—</div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -460,16 +514,18 @@
                 <div class="col-header">Network Lead Times <span class="note">R30</span></div>
                 <div class="stack has-2">
                     <div class="metric-card">
-                        <div class="sparkline-bg"></div>
                         <div class="label">Sold &rarr; Install (median)</div>
                         <div class="value">—</div>
-                        <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg"></div>
                         <div class="label">Sold &rarr; Install &lt; 10 wks</div>
                         <div class="value">—</div>
-                        <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -477,12 +533,23 @@
             <!-- MANUFACTURING -->
             <div class="category-col">
                 <div class="col-header">Manufacturing <span class="note">R30</span></div>
-                <div class="stack has-1">
-                    <div class="metric-card">
-                        <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M36.0,100.0 C45.5,87.3 74.0,18.7 93.0,24.0 C112.0,29.3 131.0,116.5 150.0,131.9 C169.0,147.3 188.0,108.9 207.0,116.2 C226.0,123.6 254.5,166.0 264.0,176.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/></svg></div>
+                <div class="stack has-2">
+                    <div class="metric-card bonus-behind">
                         <div class="label">Claim Line Items %</div>
-                        <div class="value">4.17%</div>
-                        <div class="indicator-row"><span class="indicator up-light"><span class="arrow">▼</span> -2.3%<span class="vs-label">vs prior</span></span></div>
+                        <div class="value">4.23%</div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator up-light"><span class="arrow">▼</span> -0.9%<span class="vs-label">vs prior</span></span></div>
+                            <span class="bonus-pill behind">Behind</span>
+                        </div>
+                    </div>
+                    <!-- TAT (Order -> Ship): bonus metric, awaiting query/skill (Mat to wire). -->
+                    <div class="metric-card bonus-pending">
+                        <div class="label">Order &rarr; Ship (TAT)</div>
+                        <div class="value">—</div>
+                        <div class="card-foot">
+                            <span class="bonus-pill neutral">No data yet</span>
+                            <div class="sublabel">H1 bonus · target 18d</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -492,25 +559,28 @@
                 <div class="col-header">Shipping <span class="note">R14 · WWEX</span></div>
                 <div class="stack has-3">
                     <div class="metric-card">
-                        <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M36.0,104.3 C45.5,99.0 74.0,85.8 93.0,72.4 C112.0,59.0 131.0,17.3 150.0,24.0 C169.0,30.7 188.0,87.6 207.0,112.9 C226.0,138.2 254.5,165.5 264.0,176.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/></svg></div>
                         <div class="label">Cost per lb</div>
                         <div class="value">$2.09</div>
-                        <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▼</span> -10.7%<span class="vs-label">vs prior</span></span></div>
-                        <div class="ship-span">Ships 4/23–5/7</div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▼</span> -10.7%<span class="vs-label">vs prior</span></span></div>
+                            <div class="ship-span">Ships 4/23–5/7</div>
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M36.0,47.2 C45.5,56.1 74.0,104.4 93.0,100.5 C112.0,96.6 131.0,11.4 150.0,24.0 C169.0,36.6 188.0,170.8 207.0,176.0 C226.0,181.2 254.5,75.2 264.0,55.0" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/></svg></div>
                         <div class="label">Pallet %</div>
                         <div class="value">21.0%</div>
-                        <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▲</span> +48.1%<span class="vs-label">vs prior</span></span></div>
-                        <div class="ship-span">Ships 4/23–5/7</div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▲</span> +48.1%<span class="vs-label">vs prior</span></span></div>
+                            <div class="ship-span">Ships 4/23–5/7</div>
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg"><svg preserveAspectRatio="none" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M36.0,24.0 C45.5,46.2 74.0,145.9 93.0,157.1 C112.0,168.2 131.0,88.0 150.0,91.1 C169.0,94.3 188.0,168.6 207.0,176.0 C226.0,183.4 254.5,142.3 264.0,135.5" fill="none" stroke="#88b6b1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.36"/></svg></div>
                         <div class="label">Surcharge % (ex-fuel)</div>
                         <div class="value">28.0%</div>
-                        <div class="indicator-row"><span class="indicator down-med"><span class="arrow">▲</span> +6.1%<span class="vs-label">vs prior</span></span></div>
-                        <div class="ship-span">Ships 4/23–5/7</div>
+                        <div class="card-foot">
+                            <div class="indicator-row"><span class="indicator down-med"><span class="arrow">▲</span> +6.1%<span class="vs-label">vs prior</span></span></div>
+                            <div class="ship-span">Ships 4/23–5/7</div>
+                        </div>
                     </div>
                 </div>
             </div>
