@@ -29,11 +29,44 @@ flow:
 The previous `launchd` + `run.sh` setup has been removed. The Cowork
 scheduled task is the single source of truth for the schedule.
 
+## Bonus-pace indicators (added 2026-05-21)
+Cards tied to an H1 bonus metric get a subtle colored outline + a small status
+pill (Off Track / Behind / On Track / Beating). The card headline stays the
+rolling window; the pill reflects **pace-to-6/30** vs the H1 thresholds. Config
+and scoring live in `refresh.py` under "BONUS PACE SCORING" (`BONUS_METRICS`,
+`bonus_pace`, `bonus_tier`, `bonus_class`, `bonus_pill_html`). Thresholds come
+from the H1 2026 Bonus Update PDF (2026-05-21).
+
+Tiers map: <85% pace = Off Track (red) · 85–99% = Behind (yellow) · 100–114% =
+On Track (green) · 115%+ = Beating (dark green). Lower-is-better metrics (Claim %,
+TAT) invert the comparison.
+
+Mapping of bonus metric → dashboard card:
+- **System Sales** → the hero card (relabeled from "Total Network Revenue").
+  IMPORTANT ASSUMPTION: System Sales is computed with the existing
+  `revenue_in_window` query (new-job `order_total`, ILM-excluded, anchored on
+  first-deposit date), over Jan 1 → today for the pace. If the official System
+  Sales definition uses a different date anchor (e.g. sold date), adjust
+  `revenue_in_window` or add a dedicated query.
+- **Refacing Revenue** → Refacing card. Pace uses `run_refacing_revenue` over
+  Jan 1 → today (skipped during the offline/emit pass to save time).
+- **Claim %** → Manufacturing card. Pace = H1-YTD claim % (a ratio, not projected).
+- **TAT (Order → Ship)** → NEW placeholder card in the Network Lead Times column.
+  Renders "—" with a "No data yet" pill until Mat wires a query/skill. Target is
+  18 days; `tat_days` is already in `BONUS_METRICS` so scoring works the moment a
+  value is supplied.
+- **EBITDA Margin** → NOT on the dashboard and currently unscoreable (Jan-only,
+  negative per the PDF). Future work: build an EBITDA skill, then a card. It is a
+  25%-weight bonus metric, so it belongs on the board once P&Ls are closed.
+
+Added cost: the bonus pace adds one Canvas query (System Sales YTD) and one
+refacing-skill run (Refacing YTD) per refresh, plus a cheap CSV re-read for claim.
+
 ## Token-budget notes (May 2026)
-- All sparkline trendlines are disabled in `refresh.py`. As of 2026-05-21 the
-  trend-computing functions were **removed** from the file (they were never
-  called from `main()`); each sparkline now renders `sparkline_svg([])`, a flat
-  line. Recover the functions from git history if they're needed again.
+- All sparkline trendlines were **removed** from `refresh.py` on 2026-05-21
+  (the trend functions, the `sparkline_svg` renderer, and the template
+  backgrounds). Card numbers are now centered. Recover the trend functions from
+  git history if the weekly deep-report needs them.
 - `install_trend_5x30` (now deleted) was the single most expensive call — a
   150-day install-vs-deposit re-run every refresh. Don't revive it lightly.
 - A separate "Wednesday 9:30am deep-report" skill is planned to surface

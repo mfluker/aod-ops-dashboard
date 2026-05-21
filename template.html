@@ -28,6 +28,12 @@
             --down-med:   #c75d50;
             --down-deep:  #963a2e;
             --neutral:    #9aa0a6;
+
+            /* Bonus-pace tiers (kept deliberately muted — the board should not shout) */
+            --bonus-beating:  #1f5e58;  /* 115%+  : way ahead */
+            --bonus-ontrack:  #4f9d96;  /* 100-114%: on track */
+            --bonus-behind:   #c79a1f;  /* 85-99% : behind */
+            --bonus-offtrack: #c75d50;  /* <85%   : off track */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -130,15 +136,6 @@
             box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
             min-height: 0;
         }
-        .card > *:not(.sparkline-bg) { position: relative; z-index: 2; }
-
-        .sparkline-bg {
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            pointer-events: none;
-        }
-        .sparkline-bg svg { width: 100%; height: 100%; display: block; }
 
         .card .label {
             font-size: 10px;
@@ -154,7 +151,15 @@
             letter-spacing: 0.04em;
         }
 
-        /* Revenue hero */
+        /* The metric value is the visual center of every card. */
+        .card-foot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Revenue hero (System Sales) — centered */
         .revenue-hero {
             text-align: center;
             align-items: center;
@@ -175,7 +180,12 @@
             font-size: 17px;
         }
 
-        /* Appointments */
+        /* Appointments — centered */
+        .appointments {
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+        }
         .appointments .big-number {
             font-size: 72px;
             font-weight: 800;
@@ -307,20 +317,21 @@
         .category-col .stack.has-3 { grid-template-rows: 1fr 1fr 1fr; }
         .category-col .stack.has-1 { grid-template-rows: 1fr; }
 
+        /* Metric card — number centered horizontally + vertically via 3-row grid. */
         .metric-card {
             background: var(--bg-card);
             border-radius: 12px;
             border: 1px solid var(--border-soft);
-            padding: 10px 14px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            padding: 8px 14px;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            justify-items: center;
+            text-align: center;
             position: relative;
             overflow: hidden;
             min-height: 0;
             box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
         }
-        .metric-card > *:not(.sparkline-bg) { position: relative; z-index: 2; }
         .metric-card .label {
             font-size: 10px;
             font-weight: 700;
@@ -331,34 +342,29 @@
         .metric-card .sublabel {
             font-size: 10px;
             color: var(--text-secondary);
-            margin-top: 0;
             letter-spacing: 0.04em;
         }
         .metric-card .value {
+            align-self: center;
             font-size: 40px;
             font-weight: 800;
             line-height: 1;
-            margin-top: 2px;
             letter-spacing: -0.03em;
             color: var(--aod-navy);
         }
-        .metric-card .indicator-row {
-            margin-top: 3px;
-            font-size: 13px;
-        }
+        .metric-card .indicator-row { font-size: 13px; }
         .metric-card .ship-span {
             font-size: 9px;
             color: var(--text-secondary);
             font-weight: 600;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            margin-top: 2px;
         }
         /* Manufacturing column has only 1 card — make it look intentionally large */
         .category-col .stack.has-1 .metric-card .value { font-size: 60px; }
-        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; margin-top: 6px; }
+        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; }
 
-        /* ===== Indicators ===== */
+        /* ===== Period-over-period indicators ===== */
         .indicator {
             display: inline-flex;
             align-items: center;
@@ -386,6 +392,41 @@
             letter-spacing: 0.04em;
             text-transform: uppercase;
         }
+
+        /* ===== Bonus-pace status (subtle) ===== */
+        /* A thin colored outline on the card + a small pill. Deliberately quiet. */
+        .bonus-beating  { border: 1.5px solid rgba(31, 94, 88, 0.55); }
+        .bonus-ontrack  { border: 1.5px solid rgba(79, 157, 150, 0.55); }
+        .bonus-behind   { border: 1.5px solid rgba(199, 154, 31, 0.55); }
+        .bonus-offtrack { border: 1.5px solid rgba(199, 93, 80, 0.55); }
+
+        .bonus-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .bonus-pill::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.85;
+        }
+        .bonus-pill.beating  { color: var(--bonus-beating);  background: rgba(31, 94, 88, 0.10); }
+        .bonus-pill.ontrack  { color: var(--bonus-ontrack);  background: rgba(79, 157, 150, 0.12); }
+        .bonus-pill.behind   { color: var(--bonus-behind);   background: rgba(199, 154, 31, 0.14); }
+        .bonus-pill.offtrack { color: var(--bonus-offtrack); background: rgba(199, 93, 80, 0.12); }
+        .bonus-pill.neutral  { color: var(--neutral); background: rgba(154, 160, 166, 0.10); font-weight: 600; }
+        /* Hero pill is a touch larger to match the big number, still subtle. */
+        .revenue-hero .bonus-pill { font-size: 11px; padding: 3px 11px; }
     </style>
 </head>
 <body>
@@ -403,18 +444,21 @@
         <!-- ===== AOD NETWORK ===== -->
         <div class="aod-network">
             <div class="section-label">AoD Network</div>
-            <div class="card revenue-hero">
-                <div class="sparkline-bg">{{REVENUE_SPARK}}</div>
-                <div class="label">Total Network Revenue · Rolling 30 Days</div>
+            <div class="card revenue-hero {{REVENUE_BONUS_CLASS}}">
+                <div class="label">System Sales · Rolling 30 Days</div>
                 <div class="value">{{REVENUE_VALUE}}</div>
-                <div class="indicator-row">{{REVENUE_INDICATOR}}</div>
+                <div class="card-foot">
+                    <div class="indicator-row">{{REVENUE_INDICATOR}}</div>
+                    {{REVENUE_BONUS_PILL}}
+                </div>
             </div>
             <div class="row-bottom">
                 <div class="card appointments">
-                    <div class="sparkline-bg">{{APPT_SPARK}}</div>
                     <div class="label">Design Appointments · Next 7 Days</div>
                     <div class="big-number">{{APPT_COUNT}}</div>
-                    <div class="indicator-row">{{APPT_INDICATOR}}</div>
+                    <div class="card-foot">
+                        <div class="indicator-row">{{APPT_INDICATOR}}</div>
+                    </div>
                 </div>
                 <div class="card top-lists">
                     <div>
@@ -440,17 +484,20 @@
             <div class="category-col">
                 <div class="col-header">Refacing <span class="note">R7</span></div>
                 <div class="stack has-2">
-                    <div class="metric-card">
-                        <div class="sparkline-bg">{{REFACING_SPARK}}</div>
+                    <div class="metric-card {{REFACING_BONUS_CLASS}}">
                         <div class="label">Refacing Revenue</div>
                         <div class="value">{{REFACING_VALUE}}</div>
-                        <div class="indicator-row">{{REFACING_INDICATOR}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{REFACING_INDICATOR}}</div>
+                            {{REFACING_BONUS_PILL}}
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg">{{REFACING_JOBS_SPARK}}</div>
                         <div class="label">Refacing Jobs</div>
                         <div class="value">{{REFACING_JOBS_VALUE}}</div>
-                        <div class="indicator-row">{{REFACING_JOBS_INDICATOR}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{REFACING_JOBS_INDICATOR}}</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -458,18 +505,29 @@
             <!-- NETWORK LEAD TIMES -->
             <div class="category-col">
                 <div class="col-header">Network Lead Times <span class="note">R30</span></div>
-                <div class="stack has-2">
+                <div class="stack has-3">
                     <div class="metric-card">
-                        <div class="sparkline-bg">{{S2I_MEDIAN_SPARK}}</div>
                         <div class="label">Sold &rarr; Install (median)</div>
                         <div class="value">{{S2I_MEDIAN_VALUE}}</div>
-                        <div class="indicator-row">{{S2I_MEDIAN_INDICATOR}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{S2I_MEDIAN_INDICATOR}}</div>
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg">{{S2I_PCT_SPARK}}</div>
                         <div class="label">Sold &rarr; Install &lt; 10 wks</div>
                         <div class="value">{{S2I_PCT_VALUE}}</div>
-                        <div class="indicator-row">{{S2I_PCT_INDICATOR}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{S2I_PCT_INDICATOR}}</div>
+                        </div>
+                    </div>
+                    <!-- TAT (Order -> Ship): bonus metric, awaiting query/skill (Mat to wire). -->
+                    <div class="metric-card {{TAT_BONUS_CLASS}}">
+                        <div class="label">Order &rarr; Ship (TAT)</div>
+                        <div class="value">{{TAT_VALUE}}</div>
+                        <div class="card-foot">
+                            {{TAT_BONUS_PILL}}
+                            <div class="sublabel">{{TAT_SUBLABEL}}</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -478,11 +536,13 @@
             <div class="category-col">
                 <div class="col-header">Manufacturing <span class="note">R30</span></div>
                 <div class="stack has-1">
-                    <div class="metric-card">
-                        <div class="sparkline-bg">{{CLAIM_PCT_SPARK}}</div>
+                    <div class="metric-card {{CLAIM_BONUS_CLASS}}">
                         <div class="label">Claim Line Items %</div>
                         <div class="value">{{CLAIM_PCT_VALUE}}</div>
-                        <div class="indicator-row">{{CLAIM_PCT_INDICATOR}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{CLAIM_PCT_INDICATOR}}</div>
+                            {{CLAIM_BONUS_PILL}}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -492,25 +552,28 @@
                 <div class="col-header">Shipping <span class="note">R14 · WWEX</span></div>
                 <div class="stack has-3">
                     <div class="metric-card">
-                        <div class="sparkline-bg">{{COST_PER_LB_SPARK}}</div>
                         <div class="label">Cost per lb</div>
                         <div class="value">{{COST_PER_LB_VALUE}}</div>
-                        <div class="indicator-row">{{COST_PER_LB_INDICATOR}}</div>
-                        <div class="ship-span">{{SHIP_SPAN}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{COST_PER_LB_INDICATOR}}</div>
+                            <div class="ship-span">{{SHIP_SPAN}}</div>
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg">{{PALLET_PCT_SPARK}}</div>
                         <div class="label">Pallet %</div>
                         <div class="value">{{PALLET_PCT_VALUE}}</div>
-                        <div class="indicator-row">{{PALLET_PCT_INDICATOR}}</div>
-                        <div class="ship-span">{{SHIP_SPAN}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{PALLET_PCT_INDICATOR}}</div>
+                            <div class="ship-span">{{SHIP_SPAN}}</div>
+                        </div>
                     </div>
                     <div class="metric-card">
-                        <div class="sparkline-bg">{{SURCHARGE_PCT_SPARK}}</div>
                         <div class="label">Surcharge % (ex-fuel)</div>
                         <div class="value">{{SURCHARGE_PCT_VALUE}}</div>
-                        <div class="indicator-row">{{SURCHARGE_PCT_INDICATOR}}</div>
-                        <div class="ship-span">{{SHIP_SPAN}}</div>
+                        <div class="card-foot">
+                            <div class="indicator-row">{{SURCHARGE_PCT_INDICATOR}}</div>
+                            <div class="ship-span">{{SHIP_SPAN}}</div>
+                        </div>
                     </div>
                 </div>
             </div>

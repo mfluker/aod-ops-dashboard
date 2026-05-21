@@ -234,6 +234,94 @@ def indicator_html(pct, lower_is_better=False, insufficient_data=False):
 
 
 # -----------------------------------------------------------------------------
+# 2a. BONUS PACE SCORING  (H1 2026 — source: H1_2026_Bonus_Update PDF, 2026-05-21)
+# -----------------------------------------------------------------------------
+#
+# The total bonus splits 50/50 across an Overall and an Operations bucket.
+# Payout per metric is stepwise on PACE-TO-PERIOD-END vs the H1 thresholds:
+#   < 85%  = 0% payout   (Off Track)
+#   85-99% = 85% payout   (Behind)
+#   100-114% = 100% payout (On Track)
+#   115%+  = 115% payout   (Beating / Max)
+#
+# Threshold columns from the PDF map to: Target = 100% line, MIN(85%) = 85% line,
+# MAX(115%) = 115% line. For "lower is better" metrics (TAT days, Claim %) the
+# MIN value is the HIGHEST number and MAX is the LOWEST — handled below.
+#
+# `cumulative=True` metrics are flows that accumulate over the period (System
+# Sales, Refacing Revenue) — we linearly project YTD to period end. `cumulative=
+# False` metrics are ratios/averages (Claim %, TAT) where the YTD value already
+# IS the pace, so we use it as-is.
+BONUS_PERIOD_START = datetime.date(2026, 1, 1)
+BONUS_PERIOD_END   = datetime.date(2026, 6, 30)   # inclusive
+
+BONUS_METRICS = {
+    "system_sales":     {"target": 6_500_000, "min85": 5_500_000, "max115": 8_000_000, "lower_is_better": False, "cumulative": True},
+    "refacing_revenue": {"target": 900_000,   "min85": 700_000,   "max115": 1_100_000, "lower_is_better": False, "cumulative": True},
+    "claim_pct":        {"target": 4.0,       "min85": 5.0,       "max115": 3.0,       "lower_is_better": True,  "cumulative": False},
+    "tat_days":         {"target": 18.0,      "min85": 25.0,      "max115": 12.0,      "lower_is_better": True,  "cumulative": False},
+    # EBITDA Margin is a 5th bonus metric (25% weight) but is NOT on the dashboard
+    # and is currently unscoreable (Jan-only, negative). Tracked as a future card.
+}
+
+_BONUS_TIER_LABELS = {
+    "beating": "Beating", "ontrack": "On Track", "behind": "Behind", "offtrack": "Off Track",
+}
+
+
+def bonus_pace(metric_key, ytd_value, today=None):
+    """Project a metric's pace to the end of the bonus period.
+
+    Cumulative flows are linearly extrapolated from YTD; ratios/averages are
+    returned as-is. Returns None when there's no value to score.
+    """
+    if ytd_value is None:
+        return None
+    m = BONUS_METRICS[metric_key]
+    if not m.get("cumulative"):
+        return float(ytd_value)
+    today = today or datetime.date.today()
+    end = min(today, BONUS_PERIOD_END)
+    elapsed = (end - BONUS_PERIOD_START).days + 1
+    total = (BONUS_PERIOD_END - BONUS_PERIOD_START).days + 1
+    if elapsed <= 0:
+        return None
+    return float(ytd_value) / elapsed * total
+
+
+def bonus_tier(metric_key, pace):
+    """Return ('beating'|'ontrack'|'behind'|'offtrack', label) or (None, None)."""
+    if pace is None:
+        return None, None
+    m = BONUS_METRICS[metric_key]
+    if m["lower_is_better"]:
+        if   pace <= m["max115"]: tier = "beating"
+        elif pace <= m["target"]: tier = "ontrack"
+        elif pace <= m["min85"]:  tier = "behind"
+        else:                     tier = "offtrack"
+    else:
+        if   pace >= m["max115"]: tier = "beating"
+        elif pace >= m["target"]: tier = "ontrack"
+        elif pace >= m["min85"]:  tier = "behind"
+        else:                     tier = "offtrack"
+    return tier, _BONUS_TIER_LABELS[tier]
+
+
+def bonus_class(metric_key, pace):
+    """CSS class for the subtle card outline ('' when unscoreable)."""
+    tier, _ = bonus_tier(metric_key, pace)
+    return f"bonus-{tier}" if tier else ""
+
+
+def bonus_pill_html(metric_key, pace):
+    """Small status pill ('' when unscoreable)."""
+    tier, label = bonus_tier(metric_key, pace)
+    if not tier:
+        return ""
+    return f'<span class="bonus-pill {tier}">{label}</span>'
+
+
+# -----------------------------------------------------------------------------
 # 2b. CITY → AIRPORT CODE MAP  (extend this when new AoD locations come online)
 # -----------------------------------------------------------------------------
 
@@ -338,61 +426,6 @@ def location_to_iata(location_name):
 # -----------------------------------------------------------------------------
 # 2c. SPARKLINE — smooth SVG curve drawn into the card background
 # -----------------------------------------------------------------------------
-
-def sparkline_svg(values, width=600, height=240, stroke="#88b6b1", opacity=0.22, stroke_width=4,
-                  pad_frac=0.12):
-    """
-    Build a smooth, faint curve from a list of numbers (oldest → newest).
-
-    Returns an SVG snippet sized via viewBox + preserveAspectRatio="none" so the
-    parent CSS stretches it to fill the card. Uses cubic Bezier (Catmull-Rom-ish)
-    for the smoothness. Returns "" if there isn't enough data to draw a curve.
-
-    pad_frac: padding as a fraction of width/height — keeps the curve inside the
-    card even when the SVG is stretched non-uniformly to fit the parent.
-    """
-    vals = [v for v in values if v is not None]
-    if len(vals) < 2:
-        return ""
-
-    n = len(values)
-    vmin = min(vals)
-    vmax = max(vals)
-    if vmax == vmin:
-        # Flat line — give it a tiny pad so it draws in the middle
-        vmin -= 1
-        vmax += 1
-
-    pad_x = int(width * pad_frac)
-    pad_y = int(height * pad_frac)
-    pts = []
-    for i, v in enumerate(values):
-        x = pad_x + (width - 2 * pad_x) * (i / (n - 1))
-        v_use = v if v is not None else (vmin + vmax) / 2
-        y = height - pad_y - (height - 2 * pad_y) * ((v_use - vmin) / (vmax - vmin))
-        pts.append((x, y))
-
-    # Smooth path using Catmull-Rom → cubic Bezier conversion
-    path = [f"M{pts[0][0]:.1f},{pts[0][1]:.1f}"]
-    for i in range(len(pts) - 1):
-        p0 = pts[i - 1] if i > 0 else pts[i]
-        p1 = pts[i]
-        p2 = pts[i + 1]
-        p3 = pts[i + 2] if i + 2 < len(pts) else pts[i + 1]
-        cp1x = p1[0] + (p2[0] - p0[0]) / 6
-        cp1y = p1[1] + (p2[1] - p0[1]) / 6
-        cp2x = p2[0] - (p3[0] - p1[0]) / 6
-        cp2y = p2[1] - (p3[1] - p1[1]) / 6
-        path.append(f" C{cp1x:.1f},{cp1y:.1f} {cp2x:.1f},{cp2y:.1f} {p2[0]:.1f},{p2[1]:.1f}")
-
-    return (
-        f'<svg preserveAspectRatio="none" viewBox="0 0 {width} {height}" '
-        f'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-        f'<path d="{"".join(path)}" fill="none" stroke="{stroke}" '
-        f'stroke-width="{stroke_width}" stroke-linecap="round" '
-        f'stroke-linejoin="round" opacity="{opacity}"/>'
-        f'</svg>'
-    )
 
 
 # -----------------------------------------------------------------------------
@@ -1013,11 +1046,10 @@ def _fmt_ship_date_span(earliest, latest):
 # 8. RENDER
 # -----------------------------------------------------------------------------
 #
-# NOTE: Per-metric trendline functions (revenue/appointments/refacing/install/
-# claim/shipping _trend_5x*) were removed 2026-05-21 — they were disabled for
-# token budget and never called. The sparkline TOKENS still render via
-# sparkline_svg([]) (a flat line). The planned weekly deep-report skill is the
-# right place to compute real trend history; revive from git history if needed.
+# NOTE: All sparkline trendlines were removed 2026-05-21 (functions + the
+# sparkline_svg renderer + the template backgrounds). Card numbers are now
+# centered. The planned weekly deep-report skill is the right place to compute
+# real trend history; revive the trend functions from git history if needed.
 
 def _esc(s):
     """Minimal HTML escape."""
@@ -1120,14 +1152,31 @@ def main():
         total_cur is None or total_prv is None or total_cur < 10 or total_prv < 10
     )
 
-    # 9f. Trendlines DISABLED for token budget (2026-05-21).
-    # Each sparkline gets an empty series, so sparkline_svg([]) draws nothing.
-    # The trend-computing functions were REMOVED from this file (they were never
-    # called); recover them from git history if the planned weekly deep-report
-    # skill needs real five-period history.
-    rev_trend = []
-    appt_trend = []
-    rf_trend, rfj_trend = [], []
+    # 9f. Bonus pace (H1 2026) for the bonus-tied cards.
+    # The card headline stays the rolling window above; these compute the
+    # period-to-date pace that drives the subtle outline + status pill.
+    # Skill-based YTD calls (refacing) are skipped during the offline/emit pass
+    # since they don't use the query cache and would just burn time there.
+    offline = os.environ.get("AOD_CANVAS_OFFLINE", "") == "1"
+
+    print("→ Bonus pace — System Sales (H1 YTD)...")
+    ss_ytd = revenue_in_window(BONUS_PERIOD_START, w["today"])
+    ss_pace = bonus_pace("system_sales", ss_ytd, today=w["today"])
+    print(f"   YTD={fmt_currency(ss_ytd)}  pace={fmt_currency(ss_pace)}")
+
+    print("→ Bonus pace — Refacing Revenue (H1 YTD)...")
+    if offline:
+        rf_ytd = None
+    else:
+        rf_ytd = run_refacing_revenue(BONUS_PERIOD_START, w["today"])
+    rf_pace = bonus_pace("refacing_revenue", rf_ytd, today=w["today"])
+    print(f"   YTD={fmt_currency(rf_ytd)}  pace={fmt_currency(rf_pace)}")
+
+    print("→ Bonus pace — Claim % (H1 YTD)...")
+    claim_ytd_items, total_ytd_items = fetch_mfg_claim_counts(BONUS_PERIOD_START, w["today"])
+    claim_pct_ytd = (claim_ytd_items / total_ytd_items * 100) if total_ytd_items else None
+    claim_bonus_pace = bonus_pace("claim_pct", claim_pct_ytd, today=w["today"])
+    print(f"   YTD claim%={claim_pct_ytd}  (items={claim_ytd_items}/{total_ytd_items})")
 
     # Shipping (R14 — Mat's choice to match WWEX biweekly invoice cycle).
     # Anchor the window to the most recent ship date in the invoices rather than
@@ -1143,11 +1192,6 @@ def main():
     print("→ Shipping (R14 prior)...")
     ship_prv = shipping_window_summary(*r14_prior) or {}
     print(f"   cost/lb={ship_prv.get('cost_per_lb')}  pallet%={ship_prv.get('pallet_pct')}  surch%={ship_prv.get('surcharge_pct_ex_fuel')}  n={ship_prv.get('n_shipments')}  ships {ship_prv.get('earliest_ship')}→{ship_prv.get('latest_ship')}")
-    # Shipping, install, and claim trendlines DISABLED (see note above).
-    cost_lb_trend, pallet_trend, surch_trend = [], [], []
-    s2i_med_trend, s2i_pct_trend = [], []
-    claim_trend = []
-
     # 9g. Indicator HTML for every metric
     last_updated = datetime.datetime.now().strftime("%a %b %-d · %-I:%M %p ET")
 
@@ -1156,44 +1200,49 @@ def main():
     replacements = {
         "{{LAST_UPDATED}}": last_updated,
 
-        # AoD Network
+        # AoD Network — System Sales (bonus-tied: pill = H1 pace, headline = R30)
         "{{REVENUE_VALUE}}":     fmt_currency(rev_cur),
         "{{REVENUE_INDICATOR}}": indicator_html(pct_change(rev_cur, rev_prv), lower_is_better=False),
-        "{{REVENUE_SPARK}}":     sparkline_svg(rev_trend, width=1200, height=300, opacity=0.32, stroke_width=5),
+        "{{REVENUE_BONUS_CLASS}}": bonus_class("system_sales", ss_pace),
+        "{{REVENUE_BONUS_PILL}}":  bonus_pill_html("system_sales", ss_pace),
 
         "{{APPT_COUNT}}":     str(appt_next if appt_next is not None else "—"),
         "{{APPT_INDICATOR}}": indicator_html(pct_change(appt_next, appt_prev), lower_is_better=False),
-        "{{APPT_SPARK}}":     sparkline_svg(appt_trend, width=600, height=400, opacity=0.42, stroke_width=5),
 
         "{{TOP_LOCATIONS}}":  render_list_items(top_locs, "appts"),
         "{{TOP_DESIGNERS}}":  render_list_items(top_dsrs, "appts", show_iata=True),
 
-        # Refacing
+        # Refacing (bonus-tied: pill = H1 pace, headline = R7)
         "{{REFACING_VALUE}}":     fmt_currency(rf_cur, abbreviate=True),
         "{{REFACING_INDICATOR}}": indicator_html(pct_change(rf_cur, rf_prv), lower_is_better=False),
-        "{{REFACING_SPARK}}":     sparkline_svg(rf_trend, width=300, height=200, opacity=0.36),
+        "{{REFACING_BONUS_CLASS}}": bonus_class("refacing_revenue", rf_pace),
+        "{{REFACING_BONUS_PILL}}":  bonus_pill_html("refacing_revenue", rf_pace),
 
         "{{REFACING_JOBS_VALUE}}":     str(rfj_cur if rfj_cur is not None else "—"),
         "{{REFACING_JOBS_INDICATOR}}": indicator_html(pct_change(rfj_cur, rfj_prv), lower_is_better=False),
-        "{{REFACING_JOBS_SPARK}}":     sparkline_svg(rfj_trend, width=300, height=200, opacity=0.36),
 
         # Network Lead Times
         "{{S2I_MEDIAN_VALUE}}":     fmt_weeks_days(s2i_med_cur),
         "{{S2I_MEDIAN_INDICATOR}}": indicator_html(pct_change(s2i_med_cur, s2i_med_prv), lower_is_better=True),
-        "{{S2I_MEDIAN_SPARK}}":     sparkline_svg(s2i_med_trend, width=300, height=200, opacity=0.36),
 
         "{{S2I_PCT_VALUE}}":     fmt_pct(s2i_pct_cur),
         "{{S2I_PCT_INDICATOR}}": indicator_html(pct_change(s2i_pct_cur, s2i_pct_prv), lower_is_better=False),
-        "{{S2I_PCT_SPARK}}":     sparkline_svg(s2i_pct_trend, width=300, height=200, opacity=0.36),
 
-        # Manufacturing
+        # TAT (Order → Ship) — bonus metric, placeholder until query/skill is wired.
+        "{{TAT_VALUE}}":        "—",
+        "{{TAT_BONUS_CLASS}}":  "",
+        "{{TAT_BONUS_PILL}}":   '<span class="bonus-pill neutral">No data yet</span>',
+        "{{TAT_SUBLABEL}}":     "H1 bonus · target 18d",
+
+        # Manufacturing — Claim % (bonus-tied: pill = H1 YTD claim %)
         "{{CLAIM_PCT_VALUE}}":     fmt_pct(claim_pct_cur, decimals=2),
         "{{CLAIM_PCT_INDICATOR}}": indicator_html(
             pct_change(claim_pct_cur, claim_pct_prv),
             lower_is_better=True,
             insufficient_data=claim_insufficient,
         ),
-        "{{CLAIM_PCT_SPARK}}": sparkline_svg(claim_trend, width=300, height=200, opacity=0.36),
+        "{{CLAIM_BONUS_CLASS}}": bonus_class("claim_pct", claim_bonus_pace),
+        "{{CLAIM_BONUS_PILL}}":  bonus_pill_html("claim_pct", claim_bonus_pace),
 
         # Shipping (R14)
         "{{COST_PER_LB_VALUE}}":     fmt_currency(ship_cur.get("cost_per_lb"), decimals=2) if ship_cur.get("cost_per_lb") is not None else "—",
@@ -1201,7 +1250,6 @@ def main():
             pct_change(ship_cur.get("cost_per_lb"), ship_prv.get("cost_per_lb")),
             lower_is_better=True,
         ),
-        "{{COST_PER_LB_SPARK}}": sparkline_svg(cost_lb_trend, width=300, height=200, opacity=0.36),
 
         "{{PALLET_PCT_VALUE}}":     fmt_pct(ship_cur.get("pallet_pct")),
         # Pallet % — HIGHER is better (more pallet shipments = better packing/cost).
@@ -1210,14 +1258,12 @@ def main():
             pct_change(ship_cur.get("pallet_pct"), ship_prv.get("pallet_pct")),
             lower_is_better=False,
         ),
-        "{{PALLET_PCT_SPARK}}": sparkline_svg(pallet_trend, width=300, height=200, opacity=0.36),
 
         "{{SURCHARGE_PCT_VALUE}}":     fmt_pct(ship_cur.get("surcharge_pct_ex_fuel")),
         "{{SURCHARGE_PCT_INDICATOR}}": indicator_html(
             pct_change(ship_cur.get("surcharge_pct_ex_fuel"), ship_prv.get("surcharge_pct_ex_fuel")),
             lower_is_better=True,
         ),
-        "{{SURCHARGE_PCT_SPARK}}": sparkline_svg(surch_trend, width=300, height=200, opacity=0.36),
 
         "{{SHIP_SPAN}}": ship_span or "—",
     }
