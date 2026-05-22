@@ -30,7 +30,7 @@
             --neutral:    #9aa0a6;
 
             /* Bonus-pace tiers (kept deliberately muted — the board should not shout) */
-            --bonus-beating:  #1f5e58;  /* 115%+  : way ahead */
+            --bonus-beating:  #1b6e3b;  /* 115%+  : Ahead — dark green (Mat 2026-05-22) */
             --bonus-ontrack:  #4f9d96;  /* 100-114%: on track */
             --bonus-behind:   #c79a1f;  /* 85-99% : behind */
             --bonus-offtrack: #c75d50;  /* <85%   : off track */
@@ -159,25 +159,23 @@
             gap: 4px;
         }
 
-        /* Revenue hero (System Sales) — centered */
+        /* Revenue hero (System Sales) — 3-row grid: label / (number+vs-prior) / bottom group */
         .revenue-hero {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            justify-items: center;
             text-align: center;
-            align-items: center;
-            justify-content: center;
-            padding: 12px 24px;
+            padding: 10px 24px 12px;
         }
         .revenue-hero .label { font-size: 11px; }
         .revenue-hero .value {
-            font-size: 88px;
+            /* 64px (Mat 2026-05-22): brought down from 87 so the bottom bonus group
+               always fits inside the hero card at full-screen heights without clipping. */
+            font-size: 64px;
             font-weight: 800;
             line-height: 1.0;
-            margin-top: 2px;
             color: var(--aod-navy);
             letter-spacing: -0.035em;
-        }
-        .revenue-hero .indicator-row {
-            margin-top: 4px;
-            font-size: 17px;
         }
 
         /* Appointments — centered */
@@ -295,13 +293,7 @@
             align-items: center;
             gap: 8px;
         }
-        .category-col .col-header::before {
-            content: "";
-            width: 14px;
-            height: 2px;
-            background: var(--aod-teal);
-            border-radius: 1px;
-        }
+        /* Teal dash before category labels removed per Mat 2026-05-22. */
         .category-col .col-header .note {
             font-size: 9px;
             font-weight: 500;
@@ -345,12 +337,14 @@
             letter-spacing: 0.04em;
         }
         .metric-card .value {
-            align-self: center;
-            font-size: 40px;
+            align-self: center;       /* vertical-center within the 1fr middle row */
+            justify-self: center;     /* horizontal-center within the card */
+            font-size: 42px;          /* +2pt per Mat 2026-05-22 (was 40px) */
             font-weight: 800;
             line-height: 1;
             letter-spacing: -0.03em;
             color: var(--aod-navy);
+            text-align: center;
         }
         .metric-card .indicator-row { font-size: 13px; }
         .metric-card .ship-span {
@@ -395,7 +389,7 @@
 
         /* ===== Bonus-pace status (subtle) ===== */
         /* A thin colored outline on the card + a small pill. Deliberately quiet. */
-        .bonus-beating  { border: 3.5px solid rgba(31, 94, 88, 0.55); }
+        .bonus-beating  { border: 3.5px solid rgba(27, 110, 59, 0.55); }
         .bonus-ontrack  { border: 3.5px solid rgba(79, 157, 150, 0.55); }
         .bonus-behind   { border: 3.5px solid rgba(199, 154, 31, 0.55); }
         .bonus-offtrack { border: 3.5px solid rgba(199, 93, 80, 0.55); }
@@ -423,13 +417,60 @@
             background: currentColor;
             opacity: 0.85;
         }
-        .bonus-pill.beating  { color: var(--bonus-beating);  background: rgba(31, 94, 88, 0.10); }
+        .bonus-pill.beating  { color: var(--bonus-beating);  background: rgba(27, 110, 59, 0.10); }
         .bonus-pill.ontrack  { color: var(--bonus-ontrack);  background: rgba(79, 157, 150, 0.12); }
         .bonus-pill.behind   { color: var(--bonus-behind);   background: rgba(199, 154, 31, 0.14); }
         .bonus-pill.offtrack { color: var(--bonus-offtrack); background: rgba(199, 93, 80, 0.12); }
         .bonus-pill.neutral  { color: var(--neutral); background: rgba(154, 160, 166, 0.10); font-weight: 600; }
         /* Hero pill is a touch larger to match the big number, still subtle. */
         .revenue-hero .bonus-pill { font-size: 11px; padding: 3px 11px; }
+
+        /* ===== Bonus cards: metric + its vs-prior on top, status group at bottom =====
+           Mat 2026-05-22:
+           - "% vs Prior" is tied to the metric → centered directly under the number.
+           - status indicator (pill) + Projection + Target are tied together as a
+             subtle group pinned to the BOTTOM of the card, left → right, so they
+             don't distract from the main metric. */
+        .metric-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            align-self: center;
+        }
+        .vs-prior { line-height: 1; font-size: 13px; }
+        .bonus-group {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 4px 10px;
+            width: 100%;
+            padding-top: 5px;
+            border-top: 1px solid var(--border-soft);
+        }
+        .bonus-fig {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+        /* Target = the 100% value: kept muted so the projection reads first. */
+        .bonus-fig.target { color: var(--text-secondary); font-weight: 600; }
+        /* Projection colored to the tier so it matches the status label. */
+        .bonus-fig.proj.beating  { color: var(--bonus-beating); }
+        .bonus-fig.proj.ontrack  { color: var(--bonus-ontrack); }
+        .bonus-fig.proj.behind   { color: var(--bonus-behind); }
+        .bonus-fig.proj.offtrack { color: var(--bonus-offtrack); }
+        /* Hero (System Sales) scales its vs-prior + bottom group up a touch.
+           Extra gaps so the bottom status group breathes like the other cards
+           and isn't crammed against the big number / bottom edge (Mat 2026-05-22). */
+        .revenue-hero .metric-main { gap: 4px; }
+        .revenue-hero .vs-prior { font-size: 15px; }
+        .revenue-hero .bonus-group { gap: 6px 18px; padding-top: 8px; }
+        .revenue-hero .bonus-fig { font-size: 13px; }
     </style>
 </head>
 <body>
@@ -440,7 +481,7 @@
             <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
             <div class="updated">
                 Last refreshed<br>
-                <span class="stamp">Fri May 22 · 5:58 PM ET</span>
+                <span class="stamp">Fri May 22 · 5:12 PM EST</span>
             </div>
         </div>
 
@@ -449,18 +490,21 @@
             <div class="section-label">AoD Network</div>
             <div class="card revenue-hero bonus-ontrack">
                 <div class="label">System Sales · Rolling 30 Days</div>
-                <div class="value">$1,099,935</div>
-                <div class="card-foot">
-                    <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -28.0%<span class="vs-label">vs prior</span></span></div>
+                <div class="metric-main">
+                    <div class="value">$1,099,935</div>
+                    <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▼</span> -28.0%<span class="vs-label">vs prior</span></span></div>
+                </div>
+                <div class="bonus-group">
                     <span class="bonus-pill ontrack">On Track</span>
+                    <span class="bonus-fig proj ontrack">Projection: $6.9M</span><span class="bonus-fig target">Target: $6.5M</span>
                 </div>
             </div>
             <div class="row-bottom">
                 <div class="card appointments">
                     <div class="label">Design Appointments · Next 7 Days</div>
-                    <div class="big-number">95</div>
+                    <div class="big-number">96</div>
                     <div class="card-foot">
-                        <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -12.0%<span class="vs-label">vs prior</span></span></div>
+                        <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -11.1%<span class="vs-label">vs prior</span></span></div>
                     </div>
                 </div>
                 <div class="card top-lists">
@@ -468,14 +512,14 @@
                         <h3>Top Locations</h3>
                         <ol>
                             <li><span class="name">Art of Drawers Portland</span><span class="count">10 appts</span></li>
-            <li><span class="name">Art of Drawers Raleigh</span><span class="count">10 appts</span></li>
-            <li><span class="name">Art of Drawers Denver</span><span class="count">6 appts</span></li>
+            <li><span class="name">Art of Drawers Raleigh</span><span class="count">9 appts</span></li>
+            <li><span class="name">Art of Drawers Denver</span><span class="count">7 appts</span></li>
                         </ol>
                     </div>
                     <div>
                         <h3>Top Designers</h3>
                         <ol>
-                            <li><span class="name">Dave Feehrer</span><span class="iata">RAL</span><span class="count">8 appts</span></li>
+                            <li><span class="name">Dave Feehrer</span><span class="iata">RAL</span><span class="count">7 appts</span></li>
             <li><span class="name">Danielle Langone (R)</span><span class="iata">PTL</span><span class="count">5 appts</span></li>
             <li><span class="name">Kara Irish</span><span class="iata">MCO</span><span class="count">5 appts</span></li>
             <li><span class="name">Tina Greer</span><span class="iata">STL</span><span class="count">5 appts</span></li>
@@ -494,17 +538,20 @@
                 <div class="stack has-2">
                     <div class="metric-card bonus-behind">
                         <div class="label">Refacing Revenue</div>
-                        <div class="value">$54K</div>
-                        <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -41.6%<span class="vs-label">vs prior</span></span></div>
+                        <div class="metric-main">
+                            <div class="value">$70,354</div>
+                            <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▼</span> -24.0%<span class="vs-label">vs prior</span></span></div>
+                        </div>
+                        <div class="bonus-group">
                             <span class="bonus-pill behind">Behind</span>
+                            <span class="bonus-fig proj behind">Projection: $749K</span><span class="bonus-fig target">Target: $900K</span>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Refacing Jobs</div>
-                        <div class="value">2</div>
+                        <div class="value">3</div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -60.0%<span class="vs-label">vs prior</span></span></div>
+                            <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -40.0%<span class="vs-label">vs prior</span></span></div>
                         </div>
                     </div>
                 </div>
@@ -537,10 +584,13 @@
                 <div class="stack has-2">
                     <div class="metric-card bonus-ontrack">
                         <div class="label">Claim Line Items %</div>
-                        <div class="value">2.66%</div>
-                        <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▼</span> -32.4%<span class="vs-label">vs prior</span></span></div>
+                        <div class="metric-main">
+                            <div class="value">2.44%</div>
+                            <div class="vs-prior"><span class="indicator up-deep"><span class="arrow">▼</span> -38.0%<span class="vs-label">vs prior</span></span></div>
+                        </div>
+                        <div class="bonus-group">
                             <span class="bonus-pill ontrack">On Track</span>
+                            <span class="bonus-fig proj ontrack">Projection: 3.9%</span><span class="bonus-fig target">Target: 4.0%</span>
                         </div>
                     </div>
                     <!-- TAT (Order -> Ship): bonus metric, awaiting query/skill (Mat to wire). -->
