@@ -307,7 +307,33 @@
         }
         .category-col .stack.has-2 { grid-template-rows: 1fr 1fr; }
         .category-col .stack.has-3 { grid-template-rows: 1fr 1fr 1fr; }
+        .category-col .stack.has-4 { grid-template-rows: 1fr 1fr 1fr 1fr; }
         .category-col .stack.has-1 { grid-template-rows: 1fr; }
+
+        /* Claims-on-claims card: two counts side by side inside one metric-card. */
+        .metric-card .claims-duo {
+            align-self: center;
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            width: 100%;
+        }
+        .metric-card .claims-cell { display: flex; flex-direction: column; align-items: center; }
+        .metric-card .claims-num {
+            font-size: 34px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.03em;
+            color: var(--aod-navy);
+        }
+        .metric-card .claims-cap {
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            margin-top: 3px;
+            text-transform: none;
+        }
 
         /* Metric card — number centered horizontally + vertically via 3-row grid. */
         .metric-card {
@@ -481,7 +507,7 @@
             <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
             <div class="updated">
                 Last refreshed<br>
-                <span class="stamp">Wed Jul 22 · 9:37 AM EST</span>
+                <span class="stamp">Wed Jul 22 · 12:15 PM EST</span>
             </div>
         </div>
 
@@ -586,16 +612,16 @@
             <!-- MANUFACTURING -->
             <div class="category-col">
                 <div class="col-header">Manufacturing <span class="note">R30</span></div>
-                <div class="stack has-3">
+                <div class="stack has-4">
                     <div class="metric-card bonus-behind">
                         <div class="label">Claim Line Items %</div>
                         <div class="metric-main">
-                            <div class="value">5.54%</div>
-                            <div class="vs-prior"><span class="indicator up-med"><span class="arrow">▼</span> -6.6%<span class="vs-label">vs prior</span></span></div>
+                            <div class="value">5.16%</div>
+                            <div class="vs-prior"><span class="indicator up-deep"><span class="arrow">▼</span> -12.9%<span class="vs-label">vs prior</span></span></div>
                         </div>
                         <div class="bonus-group">
                             <span class="bonus-pill behind">Behind</span>
-                            <span class="bonus-fig proj behind">Projection: 4.4%</span><span class="bonus-fig target">Target: 4.0%</span>
+                            <span class="bonus-fig proj behind">Projection: 4.3%</span><span class="bonus-fig target">Target: 4.0%</span>
                         </div>
                     </div>
                     <!-- % of R30 installs with a claim or reorder attached (Mat 2026-06-11). -->
@@ -618,6 +644,23 @@
                             <span class="bonus-fig proj behind">Projection: 19d</span><span class="bonus-fig target">Target: 18d</span>
                         </div>
                     </div>
+                    <!-- Nested claims still in production (Mfg Partner Analysis sheet). -->
+                    <div class="metric-card">
+                        <div class="label">Claims on Claims <span class="note">in production</span></div>
+                        <div class="claims-duo">
+                            <div class="claims-cell">
+                                <div class="claims-num">3</div>
+                                <div class="claims-cap">on a claim</div>
+                            </div>
+                            <div class="claims-cell">
+                                <div class="claims-num">1</div>
+                                <div class="claims-cap">on a claim &times;2</div>
+                            </div>
+                        </div>
+                        <div class="card-foot">
+                            <div class="ship-span">57 / 6 all-time on tracker</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -629,16 +672,16 @@
                         <div class="label">Pallet %</div>
                         <div class="value">24.1%</div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▲</span> +17.6%<span class="vs-label">vs prior</span></span></div>
-                            <div class="ship-span">Ships 6/17–7/1</div>
+                            <div class="indicator-row"><span class="indicator down-light"><span class="arrow">▼</span> -2.9%<span class="vs-label">vs prior</span></span></div>
+                            <div class="ship-span">Ships 7/1–7/15</div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Surcharge % (ex-fuel)</div>
-                        <div class="value">30.9%</div>
+                        <div class="value">28.8%</div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-med"><span class="arrow">▲</span> +6.1%<span class="vs-label">vs prior</span></span></div>
-                            <div class="ship-span">Ships 6/17–7/1</div>
+                            <div class="indicator-row"><span class="indicator up-light"><span class="arrow">▼</span> -3.0%<span class="vs-label">vs prior</span></span></div>
+                            <div class="ship-span">Ships 7/1–7/15</div>
                         </div>
                     </div>
                 </div>
