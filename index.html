@@ -310,30 +310,200 @@
         .category-col .stack.has-4 { grid-template-rows: 1fr 1fr 1fr 1fr; }
         .category-col .stack.has-1 { grid-template-rows: 1fr; }
 
-        /* Claims-on-claims card: two counts side by side inside one metric-card. */
-        .metric-card .claims-duo {
-            align-self: center;
-            display: flex;
+        /* Manufacturing stack: Claim % / Installs split / Claims + table / TAT.
+           The Claims + table card (3rd row) gets extra height. */
+        .category-col .stack.mfg-stack { grid-template-rows: 1fr 1fr 1.4fr 1fr; }
+        /* Card is only clickable when 4+ claims are in production (overlay). */
+        .coc-more {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: none;
+            color: var(--aod-teal);
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+        .metric-card.claims-card.claims-clickable { cursor: pointer; }
+        .metric-card.claims-card.claims-clickable:hover { border-color: var(--aod-teal); box-shadow: 0 2px 8px rgba(41, 63, 118, 0.10); }
+
+        /* Full all-claims overlay (click the Claims + card to open). */
+        .coc-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(41, 63, 118, 0.45);
+            display: none;
+            align-items: center;
             justify-content: center;
-            gap: 18px;
-            width: 100%;
+            z-index: 50;
         }
-        .metric-card .claims-cell { display: flex; flex-direction: column; align-items: center; }
-        .metric-card .claims-num {
-            font-size: 34px;
-            font-weight: 800;
-            line-height: 1;
-            letter-spacing: -0.03em;
+        .coc-overlay.open { display: flex; }
+        .coc-modal {
+            background: var(--bg-card);
+            border-radius: 14px;
+            width: min(760px, 92vw);
+            max-height: 84vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 40px rgba(41, 63, 118, 0.35);
+            overflow: hidden;
+        }
+        .coc-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px 10px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .coc-modal-head .label { font-size: 11px; }
+        .coc-modal-close {
+            border: 0;
+            background: var(--aod-linen);
             color: var(--aod-navy);
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            cursor: pointer;
         }
-        .metric-card .claims-cap {
+        .coc-modal-body { overflow-y: auto; padding: 6px 18px 16px; }
+        .coc-modal-body .coc-table td { font-size: 12px; padding: 4px 6px; }
+        .coc-modal-body .coc-table th {
+            font-size: 9px;
+            padding: 6px 6px 4px;
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+        }
+        .coc-status {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .coc-status.prod { color: #fff; background: var(--up-med); }
+        .coc-status.done { color: var(--text-secondary); background: rgba(154, 160, 166, 0.16); }
+
+        /* Claims + card: simple table of in-production claims on a claim/reorder. */
+        .metric-card.claims-card {
+            grid-template-rows: auto 1fr auto;
+            padding: 6px 12px 5px;
+            line-height: 1.25;
+        }
+        .coc-table {
+            width: 100%;
+            border-collapse: collapse;
+            align-self: start;
+            margin-top: 2px;
+        }
+        .coc-table th {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            padding: 0 4px 2px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .coc-table td {
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.25;
+            color: var(--aod-navy);
+            padding: 1px 4px;
+            border-bottom: 1px solid rgba(41, 63, 118, 0.05);
+        }
+        .coc-table tr:last-child td { border-bottom: 0; }
+        .coc-table .coc-job { font-weight: 800; }
+        .coc-table .coc-empty {
             font-size: 9px;
             font-weight: 600;
-            letter-spacing: 0.04em;
             color: var(--text-secondary);
-            margin-top: 3px;
-            text-transform: none;
+            font-style: italic;
+            padding-top: 0;
+            padding-bottom: 0;
         }
+        .coc-no {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.22);
+        }
+        .coc-no.hot { color: #fff; background: var(--down-med); }
+
+        /* Top claim reasons mini-list pinned to the bottom of the Claims + card. */
+        .coc-reasons {
+            width: 100%;
+            padding-top: 3px;
+            border-top: 1px solid var(--border-soft);
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+        .coc-reasons-title {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--aod-teal);
+        }
+        .coc-reason {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            line-height: 1.15;
+        }
+        .coc-reason .rank {
+            font-weight: 700;
+            font-size: 8px;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.22);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .coc-reason .name {
+            flex: 1;
+            text-align: left;
+            font-weight: 600;
+            color: var(--aod-navy);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .coc-reason .share {
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        /* Installs w/ Claim or Reorder: Claim % / Reorder-only % split row. */
+        .cr-split {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        .cr-split b { font-weight: 800; color: var(--aod-navy); }
+        .cr-split .cr-sep { color: var(--border-soft); }
 
         /* Metric card — number centered horizontally + vertically via 3-row grid. */
         .metric-card {
@@ -507,47 +677,43 @@
             <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
             <div class="updated">
                 Last refreshed<br>
-                <span class="stamp">Thu Aug 6 · 9:36 AM EST</span>
+                <span class="stamp">Mon Aug 10 · 10:02 AM EST</span>
             </div>
         </div>
 
         <!-- ===== AOD NETWORK ===== -->
         <div class="aod-network">
             <div class="section-label">AoD Network</div>
-            <div class="card revenue-hero bonus-ontrack">
+            <div class="card revenue-hero bonus-offtrack">
                 <div class="label">System Sales · Rolling 30 Days</div>
                 <div class="metric-main">
-                    <div class="value">$758,984</div>
-                    <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▼</span> -21.7%<span class="vs-label">vs prior</span></span></div>
+                    <div class="value">$0</div>
+                    <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                 </div>
                 <div class="bonus-group">
-                    <span class="bonus-pill ontrack">On Track</span>
-                    <span class="bonus-fig proj ontrack">Projection: $7.7M</span><span class="bonus-fig target">Target: $6.5M</span>
+                    <span class="bonus-pill offtrack">Off Track</span>
+                    <span class="bonus-fig proj offtrack">Projection: $0.0M</span><span class="bonus-fig target">Target: $6.5M</span>
                 </div>
             </div>
             <div class="row-bottom">
                 <div class="card appointments">
                     <div class="label">Design Appointments · Next 7 Days</div>
-                    <div class="big-number">89</div>
+                    <div class="big-number">0</div>
                     <div class="card-foot">
-                        <div class="indicator-row"><span class="indicator up-light"><span class="arrow">▲</span> +2.3%<span class="vs-label">vs prior</span></span></div>
+                        <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
                     </div>
                 </div>
                 <div class="card top-lists">
                     <div>
                         <h3>Top Locations</h3>
                         <ol>
-                            <li><span class="name">Art of Drawers San Antonio</span><span class="count">11 appts</span></li>
-            <li><span class="name">Art of Drawers Tampa</span><span class="count">11 appts</span></li>
-            <li><span class="name">Art of Drawers North Atlanta</span><span class="count">9 appts</span></li>
+                            <li><span class="name" style="color:var(--text-secondary)">No appointments scheduled</span><span class="count"></span></li>
                         </ol>
                     </div>
                     <div>
                         <h3>Top Designers</h3>
                         <ol>
-                            <li><span class="name">Sid Kinghar (R)</span><span class="iata">TPA</span><span class="count">11 appts</span></li>
-            <li><span class="name">Amy Dickson (R)</span><span class="iata">NATL</span><span class="count">7 appts</span></li>
-            <li><span class="name">Matt Drexler</span><span class="iata">CLE</span><span class="count">7 appts</span></li>
+                            <li><span class="name" style="color:var(--text-secondary)">No appointments scheduled</span><span class="count"></span></li>
                         </ol>
                     </div>
                 </div>
@@ -561,22 +727,22 @@
             <div class="category-col">
                 <div class="col-header">Refacing <span class="note">R7</span></div>
                 <div class="stack has-2">
-                    <div class="metric-card bonus-ontrack">
+                    <div class="metric-card bonus-offtrack">
                         <div class="label">Refacing Revenue</div>
                         <div class="metric-main">
-                            <div class="value">$51,084</div>
-                            <div class="vs-prior"><span class="indicator up-deep"><span class="arrow">▲</span> +488.0%<span class="vs-label">vs prior</span></span></div>
+                            <div class="value">$0</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                         </div>
                         <div class="bonus-group">
-                            <span class="bonus-pill ontrack">On Track</span>
-                            <span class="bonus-fig proj ontrack">Projection: $1,004K</span><span class="bonus-fig target">Target: $900K</span>
+                            <span class="bonus-pill offtrack">Off Track</span>
+                            <span class="bonus-fig proj offtrack">Projection: $0K</span><span class="bonus-fig target">Target: $900K</span>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Refacing Jobs</div>
-                        <div class="value">3</div>
+                        <div class="value">0</div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator up-deep"><span class="arrow">▲</span> +200.0%<span class="vs-label">vs prior</span></span></div>
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                 </div>
@@ -588,16 +754,16 @@
                 <div class="stack has-2">
                     <div class="metric-card">
                         <div class="label">Measure &rarr; Install (median)</div>
-                        <div class="value">8w 6d</div>
+                        <div class="value">—</div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator up-med"><span class="arrow">▼</span> -4.6%<span class="vs-label">vs prior</span></span></div>
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Measure &rarr; Install &lt; 10 wks</div>
-                        <div class="value">59.7%</div>
+                        <div class="value">—</div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-light"><span class="arrow">▼</span> -1.7%<span class="vs-label">vs prior</span></span></div>
+                            <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                 </div>
@@ -606,53 +772,61 @@
             <!-- MANUFACTURING -->
             <div class="category-col">
                 <div class="col-header">Manufacturing <span class="note">R30</span></div>
-                <div class="stack has-4">
+                <div class="stack has-4 mfg-stack">
                     <div class="metric-card bonus-behind">
                         <div class="label">Claim Line Items %</div>
                         <div class="metric-main">
-                            <div class="value">6.28%</div>
-                            <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▲</span> +33.6%<span class="vs-label">vs prior</span></span></div>
+                            <div class="value">7.41%</div>
+                            <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▲</span> +26.7%<span class="vs-label">vs prior</span></span></div>
                         </div>
                         <div class="bonus-group">
                             <span class="bonus-pill behind">Behind</span>
-                            <span class="bonus-fig proj behind">Projection: 4.6%</span><span class="bonus-fig target">Target: 4.0%</span>
+                            <span class="bonus-fig proj behind">Projection: 4.7%</span><span class="bonus-fig target">Target: 4.0%</span>
                         </div>
                     </div>
-                    <!-- % of R30 installs with a claim or reorder attached (Mat 2026-06-11). -->
+                    <!-- % of R30 installs with a claim or reorder attached (Mat 2026-06-11).
+                         Split (Mat 2026-08-06): Claim % + Reorder-only % sum to the headline. -->
                     <div class="metric-card">
                         <div class="label">Installs w/ Claim or Reorder</div>
-                        <div class="value">35.7%</div>
+                        <div class="metric-main">
+                            <div class="value">—</div>
+                            <div class="cr-split"></div>
+                        </div>
                         <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator up-med"><span class="arrow">▼</span> -8.1%<span class="vs-label">vs prior</span></span></div>
+                            <div class="indicator-row"><span class="indicator no-data">not enough data yet</span></div>
+                        </div>
+                    </div>
+                    <!-- Claims + : in-production claims whose parent order is itself a
+                         Claim or a Reorder (Mfg Partner Analysis sheet). Claim # is the
+                         claim's position in the remake chain — claim-on-claim = 2,
+                         claim-on-reorder = 2, claim-on-claim-on-claim = 3.
+                         Sits directly under the claims-rate card (Mat 2026-08-06);
+                         clicking opens the full all-claims overlay. -->
+                    <div class="metric-card claims-card claims-clickable" onclick="document.getElementById('coc-overlay').classList.add('open')" title="Click to see all in-production claims">
+                        <div class="label">Claims + <span class="note">claim on claim / reorder · in production</span><span class="coc-more">+3 more · click for all</span></div>
+                        <table class="coc-table">
+                            <thead>
+                                <tr><th>Job #</th><th>Mfg</th><th>Loc</th><th>Claim #</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td class="coc-job">C7167</td><td>EAG</td><td>OMH</td><td><span class="coc-no">2</span></td></tr><tr><td class="coc-job">C7166</td><td>JB</td><td>CNS</td><td><span class="coc-no hot">3</span></td></tr><tr><td class="coc-job">C7165</td><td>EAG</td><td>CNS</td><td><span class="coc-no">2</span></td></tr>
+                            </tbody>
+                        </table>
+                        <div class="coc-reasons">
+                            <div class="coc-reasons-title">Top Claim Reasons · Last 30 Days</div>
+                            <div class="coc-reason"><span class="rank">1</span><span class="name">Shipping Damage</span><span class="share">34 items · 26%</span></div><div class="coc-reason"><span class="rank">2</span><span class="name">Poor Quality</span><span class="share">30 items · 23%</span></div><div class="coc-reason"><span class="rank">3</span><span class="name">Built Incorrectly</span><span class="share">26 items · 20%</span></div>
                         </div>
                     </div>
                     <!-- TAT (Order -> Ship): bonus metric (status 5 -> status 6, nearest day). -->
-                    <div class="metric-card bonus-ontrack">
+                    <div class="metric-card bonus-pending">
                         <div class="label">Order &rarr; Ship (TAT)</div>
                         <div class="metric-main">
-                            <div class="value">18d</div>
-                            <div class="vs-prior"><span class="indicator up-med"><span class="arrow">▼</span> -5.3%<span class="vs-label">vs prior</span></span></div>
+                            <div class="value">—</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                         </div>
                         <div class="bonus-group">
-                            <span class="bonus-pill ontrack">On Track</span>
-                            <span class="bonus-fig proj ontrack">Projection: 18d</span><span class="bonus-fig target">Target: 18d</span>
-                        </div>
-                    </div>
-                    <!-- Nested claims still in production (Mfg Partner Analysis sheet). -->
-                    <div class="metric-card">
-                        <div class="label">Claims on Claims <span class="note">in production</span></div>
-                        <div class="claims-duo">
-                            <div class="claims-cell">
-                                <div class="claims-num">1</div>
-                                <div class="claims-cap">on a claim</div>
-                            </div>
-                            <div class="claims-cell">
-                                <div class="claims-num">0</div>
-                                <div class="claims-cap">on a claim &times;2</div>
-                            </div>
-                        </div>
-                        <div class="card-foot">
-                            <div class="ship-span">60 / 6 all-time on tracker</div>
+                            <span class="bonus-pill neutral">No data yet</span>
+                            
                         </div>
                     </div>
                 </div>
@@ -683,5 +857,30 @@
 
         </div>
     </div>
+
+    <!-- In-production claims overlay: opens from the Claims + card when 4+ are in production. -->
+    <div class="coc-overlay" id="coc-overlay" onclick="if (event.target === this) this.classList.remove('open')">
+        <div class="coc-modal">
+            <div class="coc-modal-head">
+                <div class="label">Claims on a Claim / Reorder <span class="note">6 in production</span></div>
+                <button class="coc-modal-close" onclick="document.getElementById('coc-overlay').classList.remove('open')">Close ✕</button>
+            </div>
+            <div class="coc-modal-body">
+                <table class="coc-table">
+                    <thead>
+                        <tr><th>Job #</th><th>Parent</th><th>Mfg</th><th>Loc</th><th>Claim #</th><th>Date</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="coc-job">C7167</td><td>C6491</td><td>EAG</td><td>OMH</td><td><span class="coc-no">2</span></td><td>08/07/26</td></tr><tr><td class="coc-job">C7166</td><td>C7006</td><td>JB</td><td>CNS</td><td><span class="coc-no hot">3</span></td><td>08/07/26</td></tr><tr><td class="coc-job">C7165</td><td>C6949</td><td>EAG</td><td>CNS</td><td><span class="coc-no">2</span></td><td>08/07/26</td></tr><tr><td class="coc-job">C7165</td><td>C6949</td><td>EAG</td><td>CNS</td><td><span class="coc-no">2</span></td><td>08/07/26</td></tr><tr><td class="coc-job">C7129</td><td>C6862</td><td>CCF</td><td>MIN</td><td><span class="coc-no">2</span></td><td>08/04/26</td></tr><tr><td class="coc-job">C7113</td><td>R6767</td><td>CCF</td><td>OMH</td><td><span class="coc-no">2</span></td><td>08/03/26</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') document.getElementById('coc-overlay').classList.remove('open');
+        });
+    </script>
 </body>
 </html>
