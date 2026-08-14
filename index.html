@@ -9,7 +9,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        /* =====================================================================
+           TV BUILD — Mat 2026-08-14
+           Target: 48" x 28" panel (~55" 16:9) at 1080p, read from across a room.
+           Everything is sized in `rem` off a viewport-derived root, so the board
+           fills the panel identically at 1080p, 1440p or 4K without a rebuild.
+           At 1080p 1rem = 26px; the smallest text on the board is ~19px, which
+           is the practical floor for legibility at 8-10 ft on a 48"-wide screen.
+
+           ALL bonus-pace UI was removed on 2026-08-14 (pills, Projection/Target
+           figures, and the colored/dashed card outlines). Do not reintroduce
+           status chips on any card. Period-over-period arrows STAY and stay
+           colored — they are trend context, not bonus tracking.
+           ===================================================================== */
         :root {
+            /* 2.4vh => 25.9px at 1080p, 36px at 4K (clamped), 12px floor. */
+            font-size: clamp(12px, 2.4vh, 36px);
+
             --aod-navy:  #293f76;
             --aod-teal:  #88b6b1;
             --aod-linen: #f4ecd9;
@@ -17,23 +33,19 @@
             --bg-page:    var(--aod-linen);
             --bg-card:    #ffffff;
             --text-primary:   var(--aod-navy);
-            --text-secondary: #6a7080;
+            --text-secondary: #5f6678;
             --text-on-dark:   #ffffff;
-            --border-soft:    rgba(41, 63, 118, 0.10);
+            --border-soft:    rgba(41, 63, 118, 0.12);
 
-            --up-light: #b3d4d0;
-            --up-med:   #4f9d96;
-            --up-deep:  #2c736d;
-            --down-light: #e6b0a8;
-            --down-med:   #c75d50;
-            --down-deep:  #963a2e;
-            --neutral:    #9aa0a6;
-
-            /* Bonus-pace tiers (kept deliberately muted — the board should not shout) */
-            --bonus-beating:  #1b6e3b;  /* 115%+  : Ahead — dark green (Mat 2026-05-22) */
-            --bonus-ontrack:  #4f9d96;  /* 100-114%: on track */
-            --bonus-behind:   #c79a1f;  /* 85-99% : behind */
-            --bonus-offtrack: #c75d50;  /* <85%   : off track */
+            /* Trend colors nudged up in saturation vs the desktop build — TV
+               panels wash out muted tones at viewing distance. */
+            --up-light: #6aa9a3;
+            --up-med:   #35857d;
+            --up-deep:  #1f6b64;
+            --down-light: #d08074;
+            --down-med:   #bf4436;
+            --down-deep:  #96271a;
+            --neutral:    #8b919c;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -51,172 +63,227 @@
 
         .dashboard {
             display: grid;
-            grid-template-rows: 52px 1fr 1fr;
+            grid-template-rows: 8.2vh 0.86fr 1.14fr;
             height: 100vh;
-            padding: 10px;
-            gap: 8px;
+            padding: 0.9vh 0.7vw;
+            gap: 0.85vh;
         }
 
         /* ===== Header ===== */
         .header {
             background: var(--aod-navy);
             color: var(--text-on-dark);
-            border-radius: 12px;
-            padding: 0 24px;
+            border-radius: 0.5rem;
+            padding: 0 1.2rem 0 1.4rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 1rem;
+            overflow: hidden;
+            position: relative;
         }
         .header .brand {
-            font-size: 20px;
-            font-weight: 600;
-            letter-spacing: 0.18em;
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
+            white-space: nowrap;
         }
         .header .brand .accent { color: var(--aod-teal); font-weight: 500; }
-        .header .updated {
-            font-size: 11px;
-            color: rgba(255,255,255,0.55);
-            text-align: right;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            line-height: 1.4;
-        }
-        .header .updated .stamp { font-weight: 600; color: rgba(255,255,255,0.95); letter-spacing: 0.01em; text-transform: none; font-size: 13px; }
 
-        /* ===== Section label (above each block) ===== */
+        /* --- Live clock: the anti-sleep element. It repaints every second so
+               the TV always sees on-screen motion and never drops to standby. --- */
+        .header .clock-block {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-left: auto;
+        }
+        .header .updated {
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.6);
+            text-align: right;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+        .header .updated .stamp {
+            display: block;
+            font-weight: 700;
+            color: rgba(255,255,255,0.95);
+            letter-spacing: 0.01em;
+            text-transform: none;
+            font-size: 0.82rem;
+        }
+        .header .clock {
+            display: flex;
+            align-items: baseline;
+            gap: 0;
+            padding-left: 1rem;
+            border-left: 1px solid rgba(255,255,255,0.22);
+        }
+        .header .clock .hm {
+            font-size: 2.05rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.03em;
+            font-variant-numeric: tabular-nums;
+        }
+        /* Seconds are the piece that actually ticks — teal so the movement is
+           visible from across the room without being loud. */
+        .header .clock .sec {
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--aod-teal);
+            font-variant-numeric: tabular-nums;
+            min-width: 1.45rem;
+        }
+        .header .clock .mer {
+            margin-left: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.65);
+        }
+        .header .pulse {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: var(--aod-teal);
+            flex-shrink: 0;
+            animation: livepulse 2s ease-in-out infinite;
+        }
+        @keyframes livepulse {
+            0%, 100% { opacity: 0.25; transform: scale(0.75); }
+            50%      { opacity: 1;    transform: scale(1.15); }
+        }
+        /* A slow sweep across the header. Second continuously-animating element
+           so there is motion even in the seconds between clock ticks. */
+        .header::after {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 22%;
+            background: linear-gradient(90deg, transparent, rgba(136,182,177,0.16), transparent);
+            animation: sweep 9s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes sweep {
+            0%   { left: -25%; }
+            100% { left: 105%; }
+        }
+
+        /* ===== Section label ===== */
         .section-label {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.28em;
+            gap: 0.45rem;
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.26em;
             color: var(--aod-navy);
             text-transform: uppercase;
-            margin: 0 2px 4px;
+            margin: 0 0.1rem;
         }
         .section-label::before {
             content: "";
-            width: 16px;
+            width: 1rem;
             height: 2px;
             background: var(--aod-teal);
             border-radius: 1px;
         }
-        .section-label .note {
-            font-size: 9px;
-            font-weight: 500;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-        }
 
-        /* ===== AoD Network section (top half) ===== */
+        /* ===== AoD Network (top block) ===== */
         .aod-network {
             display: grid;
-            grid-template-rows: auto 1.05fr 1fr;
-            gap: 8px;
+            grid-template-rows: auto 1.02fr 1fr;
+            gap: 0.8vh;
             min-height: 0;
         }
         .aod-network .row-bottom {
             display: grid;
-            grid-template-columns: 1fr 1.3fr;
-            gap: 8px;
+            grid-template-columns: 1fr 1.45fr;
+            gap: 0.6vw;
             min-height: 0;
         }
 
         .card {
             background: var(--bg-card);
-            border-radius: 12px;
+            border-radius: 0.5rem;
             border: 1px solid var(--border-soft);
-            padding: 12px 18px;
+            padding: 0.35rem 0.9rem;
             display: flex;
             flex-direction: column;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.05);
             min-height: 0;
         }
 
-        .card .label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.2em;
+        .card .label,
+        .metric-card .label {
+            font-size: 0.76rem;
+            font-weight: 800;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
             color: var(--text-secondary);
-        }
-        .card .sublabel {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-            letter-spacing: 0.04em;
+            line-height: 1.2;
         }
 
-        /* The metric value is the visual center of every card. */
-        .card-foot {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-
-        /* Revenue hero (System Sales) — 3-row grid: label / (number+vs-prior) / bottom group */
+        /* ===== Hero: System Sales ===== */
         .revenue-hero {
             display: grid;
-            grid-template-rows: auto 1fr auto;
+            grid-template-rows: auto 1fr;
             justify-items: center;
+            align-content: center;
             text-align: center;
-            padding: 10px 24px 12px;
+            padding: 0.2rem 1rem;
+            gap: 0.1rem;
         }
-        .revenue-hero .label { font-size: 11px; }
+        .revenue-hero .label { font-size: 0.92rem; letter-spacing: 0.2em; }
         .revenue-hero .value {
-            /* 64px (Mat 2026-05-22): brought down from 87 so the bottom bonus group
-               always fits inside the hero card at full-screen heights without clipping. */
-            font-size: 64px;
-            font-weight: 800;
-            line-height: 1.0;
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 1;
             color: var(--aod-navy);
-            letter-spacing: -0.035em;
+            letter-spacing: -0.04em;
         }
+        .revenue-hero .vs-prior { font-size: 1.05rem; }
 
-        /* Appointments — centered */
+        /* ===== Appointments ===== */
         .appointments {
             text-align: center;
             align-items: center;
             justify-content: center;
+            gap: 0.1rem;
         }
         .appointments .big-number {
-            font-size: 72px;
-            font-weight: 800;
+            font-size: 3.9rem;
+            font-weight: 900;
             line-height: 1;
-            margin-top: 2px;
-            letter-spacing: -0.035em;
+            letter-spacing: -0.04em;
             color: var(--aod-navy);
         }
-        .appointments .indicator-row {
-            margin-top: 2px;
-            font-size: 14px;
-        }
+        .appointments .indicator-row { font-size: 0.95rem; }
 
-        /* Top lists */
+        /* ===== Top lists ===== */
         .top-lists {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            padding: 14px 18px;
+            gap: 1.2rem;
+            padding: 0.55rem 1rem;
             align-content: stretch;
         }
-        .top-lists > div {
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
+        .top-lists > div { display: flex; flex-direction: column; min-height: 0; }
         .top-lists h3 {
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 0.68rem;
+            font-weight: 800;
             letter-spacing: 0.18em;
-            color: var(--aod-teal);
+            color: var(--up-med);
             text-transform: uppercase;
-            margin-bottom: 6px;
+            margin-bottom: 0.2rem;
         }
         .top-lists ol {
             list-style: none;
@@ -228,105 +295,356 @@
         }
         .top-lists li {
             counter-increment: rank;
-            font-size: 16px;
-            font-weight: 500;
-            padding: 6px 0;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.2rem 0;
             border-bottom: 1px solid var(--border-soft);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 0.4rem;
+            min-width: 0;
         }
         .top-lists li:last-child { border-bottom: 0; }
         .top-lists li::before {
             content: counter(rank);
-            font-weight: 700;
-            font-size: 10px;
+            font-weight: 800;
+            font-size: 0.62rem;
             color: var(--aod-navy);
-            background: rgba(136, 182, 177, 0.22);
-            width: 18px;
-            height: 18px;
+            background: rgba(136, 182, 177, 0.28);
+            width: 1.15rem;
+            height: 1.15rem;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
         }
-        .top-lists li .name { flex: 1; color: var(--aod-navy); font-weight: 500; }
+        .top-lists li .name {
+            flex: 1;
+            color: var(--aod-navy);
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .top-lists li .iata {
-            font-size: 9px;
-            font-weight: 700;
+            font-size: 0.58rem;
+            font-weight: 800;
             letter-spacing: 0.06em;
             color: var(--aod-navy);
             background: var(--aod-linen);
-            border: 1px solid rgba(41, 63, 118, 0.15);
-            padding: 1px 5px;
-            border-radius: 4px;
+            border: 1px solid rgba(41, 63, 118, 0.16);
+            padding: 0.08rem 0.3rem;
+            border-radius: 0.2rem;
+            flex-shrink: 0;
         }
         .top-lists li .count {
-            font-size: 11px;
+            font-size: 0.72rem;
             color: var(--text-secondary);
-            font-weight: 600;
-            letter-spacing: 0.02em;
+            font-weight: 700;
+            flex-shrink: 0;
         }
 
         /* ===== Bottom: 4 category columns ===== */
         .categories {
             display: grid;
-            grid-template-columns: 1fr 1fr 1.1fr 0.95fr;
-            gap: 8px;
+            grid-template-columns: 1fr 1fr 1.22fr 1fr;
+            gap: 0.6vw;
             min-height: 0;
         }
         .category-col {
             display: grid;
             grid-template-rows: auto 1fr;
-            gap: 5px;
+            gap: 0.4vh;
             min-height: 0;
         }
         .category-col .col-header {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.22em;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.2em;
             color: var(--aod-navy);
             text-transform: uppercase;
-            padding: 2px 2px 0;
+            padding: 0 0.15rem;
             display: flex;
-            align-items: center;
-            gap: 8px;
+            align-items: baseline;
+            gap: 0.5rem;
+            white-space: nowrap;
         }
-        /* Teal dash before category labels removed per Mat 2026-05-22. */
         .category-col .col-header .note {
-            font-size: 9px;
-            font-weight: 500;
-            letter-spacing: 0.12em;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
             color: var(--text-secondary);
         }
         .category-col .stack {
             display: grid;
-            gap: 6px;
+            gap: 0.55vh;
             min-height: 0;
         }
+        .category-col .stack.has-1 { grid-template-rows: 1fr; }
         .category-col .stack.has-2 { grid-template-rows: 1fr 1fr; }
         .category-col .stack.has-3 { grid-template-rows: 1fr 1fr 1fr; }
         .category-col .stack.has-4 { grid-template-rows: 1fr 1fr 1fr 1fr; }
-        .category-col .stack.has-1 { grid-template-rows: 1fr; }
+        /* Manufacturing: Claim % / Installs split / Claims + table.
+           Order -> Ship (TAT) lives in Network Lead Times — it IS a lead time,
+           and 4 cards in one column cannot hold TV-legible type at 1080p. */
+        .category-col .stack.mfg-stack { grid-template-rows: 1fr 1fr 1.32fr; }
 
-        /* Manufacturing stack: Claim % / Installs split / Claims + table / TAT.
-           The Claims + table card (3rd row) gets extra height. */
-        .category-col .stack.mfg-stack { grid-template-rows: 1.15fr 1fr 1.3fr 1fr; }
-        /* Card is only clickable when 4+ claims are in production (overlay). */
-        .coc-more {
-            font-size: 9px;
+        /* ===== Metric card ===== */
+        .metric-card {
+            background: var(--bg-card);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-soft);
+            padding: 0.4rem 0.7rem;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            justify-items: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.05);
+        }
+        .metric-card .value {
+            align-self: center;
+            justify-self: center;
+            font-size: 2.5rem;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.035em;
+            color: var(--aod-navy);
+            text-align: center;
+        }
+        .metric-card .indicator-row { font-size: 0.8rem; }
+        .metric-card .ship-span {
+            font-size: 0.56rem;
+            color: var(--text-secondary);
             font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .card-foot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.12rem;
+        }
+        .category-col .stack.has-1 .metric-card .value { font-size: 3.4rem; }
+        /* Refacing + Shipping only carry 2 cards each — use the headroom. */
+        .categories .stack.has-2 .metric-card .value { font-size: 2.95rem; }
+
+        /* Metric body: number + its vs-prior arrow, vertically centered. */
+        .metric-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.12rem;
+            align-self: center;
+        }
+        .vs-prior { line-height: 1; font-size: 0.8rem; }
+
+        /* Split card: big number LEFT, supporting detail RIGHT. */
+        .metric-main.split-main {
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        .metric-main.split-main .split-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.12rem;
+            flex-shrink: 0;
+        }
+        .metric-main.split-main .split-left .value { font-size: 2.05rem; }
+        .metric-main.split-main .split-right {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.06rem;
+            padding-left: 0.55rem;
+            border-left: 1px solid var(--border-soft);
+            text-align: left;
+        }
+
+        /* ===== Claims + card ===== */
+        .metric-card.claims-card {
+            grid-template-rows: auto 1fr;
+            align-items: start;
+            padding: 0.35rem 0.6rem 0.4rem;
+            line-height: 1.2;
+        }
+        /* The label must not wrap — a second line eats a table row. */
+        .metric-card.claims-card > .label {
+            white-space: nowrap;
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+        }
+        .metric-card.claims-card > .label .note {
+            font-size: 0.56rem;
+            font-weight: 600;
             letter-spacing: 0.06em;
             text-transform: none;
-            color: var(--aod-teal);
-            margin-left: 6px;
+            color: var(--text-secondary);
+        }
+        .coc-more {
+            font-size: 0.58rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: none;
+            color: var(--up-med);
+            margin-left: 0.3rem;
             white-space: nowrap;
         }
         .metric-card.claims-card.claims-clickable { cursor: pointer; }
-        .metric-card.claims-card.claims-clickable:hover { border-color: var(--aod-teal); box-shadow: 0 2px 8px rgba(41, 63, 118, 0.10); }
+        .metric-card.claims-card.claims-clickable:hover {
+            border-color: var(--aod-teal);
+            box-shadow: 0 2px 10px rgba(41, 63, 118, 0.12);
+        }
+        .coc-table {
+            width: 100%;
+            border-collapse: collapse;
+            align-self: start;
+            margin-top: 0.15rem;
+        }
+        .coc-table th {
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            padding: 0 0.25rem 0.12rem;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .coc-table td {
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 1.25;
+            color: var(--aod-navy);
+            padding: 0.1rem 0.25rem;
+            border-bottom: 1px solid rgba(41, 63, 118, 0.06);
+            white-space: nowrap;
+        }
+        .coc-table tr:last-child td { border-bottom: 0; }
+        .coc-table .coc-job { font-weight: 900; }
+        .coc-table .coc-empty {
+            font-size: 0.62rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        .coc-no {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.05rem;
+            height: 1.05rem;
+            padding: 0 0.22rem;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            font-weight: 900;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.28);
+        }
+        .coc-no.hot { color: #fff; background: var(--down-med); }
 
-        /* Full all-claims overlay (click the Claims + card to open). */
+        /* Top claim reasons mini-list (right side of the Claim % card). */
+        .coc-reasons { width: 100%; display: flex; flex-direction: column; }
+        .coc-reasons-title {
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--up-med);
+            margin-bottom: 0.1rem;
+        }
+        .coc-reason {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            line-height: 1.3;
+        }
+        .coc-reason .rank {
+            font-weight: 800;
+            font-size: 0.52rem;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.28);
+            width: 0.85rem;
+            height: 0.85rem;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .coc-reason .name {
+            flex: 1;
+            text-align: left;
+            font-weight: 700;
+            color: var(--aod-navy);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .coc-reason .share {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        /* Installs w/ Claim or Reorder: the claim vs reorder-only split. */
+        .cr-split {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.15rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .cr-split b { font-weight: 900; color: var(--aod-navy); }
+        .cr-split .cr-sep { display: none; }
+
+        /* ===== Period-over-period indicators (kept — trend context) ===== */
+        .indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-weight: 800;
+            padding: 0.1rem 0.5rem;
+            border-radius: 999px;
+            background: rgba(41, 63, 118, 0.06);
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+        }
+        .indicator .arrow { font-size: 1.05em; line-height: 1; }
+        .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.20); }
+        .indicator.up-med    { color: var(--up-med);   background: rgba(53, 133, 125, 0.16); }
+        .indicator.up-deep   { color: var(--up-deep);  background: rgba(31, 107, 100, 0.16); }
+        .indicator.down-light{ color: var(--down-light); background: rgba(208, 128, 116, 0.20); }
+        .indicator.down-med  { color: var(--down-med);   background: rgba(191, 68, 54, 0.14); }
+        .indicator.down-deep { color: var(--down-deep);  background: rgba(150, 39, 26, 0.14); }
+        .indicator.no-data   { color: var(--neutral); font-weight: 600; font-style: italic; background: transparent; padding: 0; }
+
+        .vs-label {
+            font-size: 0.72em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-left: 0.15rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* ===== Claims overlay ===== */
         .coc-overlay {
             position: fixed;
             inset: 0;
@@ -339,8 +657,8 @@
         .coc-overlay.open { display: flex; }
         .coc-modal {
             background: var(--bg-card);
-            border-radius: 14px;
-            width: min(760px, 92vw);
+            border-radius: 0.6rem;
+            width: min(70vw, 92vw);
             max-height: 84vh;
             display: flex;
             flex-direction: column;
@@ -351,365 +669,47 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 18px 10px;
+            padding: 0.7rem 0.9rem 0.5rem;
             border-bottom: 1px solid var(--border-soft);
         }
-        .coc-modal-head .label { font-size: 11px; }
+        .coc-modal-head .label {
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
         .coc-modal-close {
             border: 0;
             background: var(--aod-linen);
             color: var(--aod-navy);
             font-family: inherit;
-            font-weight: 700;
-            font-size: 12px;
-            padding: 5px 12px;
+            font-weight: 800;
+            font-size: 0.72rem;
+            padding: 0.3rem 0.8rem;
             border-radius: 999px;
             cursor: pointer;
         }
-        .coc-modal-body { overflow-y: auto; padding: 6px 18px 16px; }
-        .coc-modal-body .coc-table td { font-size: 12px; padding: 4px 6px; }
+        .coc-modal-body { overflow-y: auto; padding: 0.3rem 0.9rem 0.8rem; }
+        .coc-modal-body .coc-table td { font-size: 0.78rem; padding: 0.22rem 0.35rem; }
         .coc-modal-body .coc-table th {
-            font-size: 9px;
-            padding: 6px 6px 4px;
+            font-size: 0.6rem;
+            padding: 0.35rem 0.35rem 0.22rem;
             position: sticky;
             top: 0;
             background: var(--bg-card);
         }
         .coc-status {
-            font-size: 9px;
-            font-weight: 700;
+            font-size: 0.6rem;
+            font-weight: 800;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            padding: 2px 8px;
+            padding: 0.1rem 0.45rem;
             border-radius: 999px;
             white-space: nowrap;
         }
         .coc-status.prod { color: #fff; background: var(--up-med); }
-        .coc-status.done { color: var(--text-secondary); background: rgba(154, 160, 166, 0.16); }
-
-        /* Claims + card: simple table of in-production claims on a claim/reorder. */
-        .metric-card.claims-card {
-            grid-template-rows: auto 1fr auto;
-            padding: 6px 12px 5px;
-            line-height: 1.25;
-        }
-        .coc-table {
-            width: 100%;
-            border-collapse: collapse;
-            align-self: start;
-            margin-top: 2px;
-        }
-        .coc-table th {
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-            padding: 0 4px 2px;
-            border-bottom: 1px solid var(--border-soft);
-        }
-        .coc-table td {
-            font-size: 11px;
-            font-weight: 600;
-            line-height: 1.25;
-            color: var(--aod-navy);
-            padding: 1px 4px;
-            border-bottom: 1px solid rgba(41, 63, 118, 0.05);
-        }
-        .coc-table tr:last-child td { border-bottom: 0; }
-        .coc-table .coc-job { font-weight: 800; }
-        .coc-table .coc-empty {
-            font-size: 9px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            font-style: italic;
-            padding-top: 0;
-            padding-bottom: 0;
-        }
-        .coc-no {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 16px;
-            height: 16px;
-            padding: 0 4px;
-            border-radius: 999px;
-            font-size: 10px;
-            font-weight: 800;
-            color: var(--aod-navy);
-            background: rgba(136, 182, 177, 0.22);
-        }
-        .coc-no.hot { color: #fff; background: var(--down-med); }
-
-        /* Top claim reasons mini-list pinned to the bottom of the Claims + card. */
-        .coc-reasons {
-            width: 100%;
-            padding-top: 3px;
-            border-top: 1px solid var(--border-soft);
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-        }
-        .coc-reasons-title {
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--aod-teal);
-        }
-        .coc-reason {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 10px;
-            line-height: 1.15;
-        }
-        .coc-reason .rank {
-            font-weight: 700;
-            font-size: 8px;
-            color: var(--aod-navy);
-            background: rgba(136, 182, 177, 0.22);
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .coc-reason .name {
-            flex: 1;
-            text-align: left;
-            font-weight: 600;
-            color: var(--aod-navy);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .coc-reason .share {
-            font-size: 9px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            white-space: nowrap;
-        }
-
-        /* Installs w/ Claim or Reorder: Claim % / Reorder-only % split row. */
-        .cr-split {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--text-secondary);
-        }
-        .cr-split b { font-weight: 800; color: var(--aod-navy); }
-        .cr-split .cr-sep { color: var(--border-soft); }
-
-        /* Metric card — number centered horizontally + vertically via 3-row grid. */
-        .metric-card {
-            background: var(--bg-card);
-            border-radius: 12px;
-            border: 1px solid var(--border-soft);
-            padding: 8px 14px;
-            display: grid;
-            grid-template-rows: auto 1fr auto;
-            justify-items: center;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-            min-height: 0;
-            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
-        }
-        .metric-card .label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-        }
-        .metric-card .sublabel {
-            font-size: 10px;
-            color: var(--text-secondary);
-            letter-spacing: 0.04em;
-        }
-        .metric-card .value {
-            align-self: center;       /* vertical-center within the 1fr middle row */
-            justify-self: center;     /* horizontal-center within the card */
-            font-size: 42px;          /* +2pt per Mat 2026-05-22 (was 40px) */
-            font-weight: 800;
-            line-height: 1;
-            letter-spacing: -0.03em;
-            color: var(--aod-navy);
-            text-align: center;
-        }
-        .metric-card .indicator-row { font-size: 13px; }
-        .metric-card .ship-span {
-            font-size: 9px;
-            color: var(--text-secondary);
-            font-weight: 600;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-        }
-        /* Manufacturing column has only 1 card — make it look intentionally large */
-        .category-col .stack.has-1 .metric-card .value { font-size: 60px; }
-        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; }
-
-        /* ===== Period-over-period indicators ===== */
-        .indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-weight: 700;
-            padding: 2px 9px;
-            border-radius: 999px;
-            background: rgba(41, 63, 118, 0.06);
-            letter-spacing: 0.01em;
-        }
-        .indicator .arrow { font-size: 1.05em; line-height: 1; }
-        .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.14); }
-        .indicator.up-med    { color: var(--up-med);   background: rgba(79, 157, 150, 0.14); }
-        .indicator.up-deep   { color: var(--up-deep);  background: rgba(44, 115, 109, 0.14); }
-        .indicator.down-light{ color: var(--down-light); background: rgba(230, 176, 168, 0.18); }
-        .indicator.down-med  { color: var(--down-med);   background: rgba(199, 93, 80, 0.14); }
-        .indicator.down-deep { color: var(--down-deep);  background: rgba(150, 58, 46, 0.14); }
-        .indicator.no-data   { color: var(--neutral); font-weight: 500; font-style: italic; background: transparent; padding: 0; }
-
-        .vs-label {
-            font-size: 0.7em;
-            color: var(--text-secondary);
-            font-weight: 500;
-            margin-left: 3px;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        /* ===== Bonus-pace status (subtle) ===== */
-        /* A thin colored outline on the card + a small pill. Deliberately quiet. */
-        .bonus-beating  { border: 3.5px solid rgba(27, 110, 59, 0.55); }
-        .bonus-ontrack  { border: 3.5px solid rgba(79, 157, 150, 0.55); }
-        .bonus-behind   { border: 3.5px solid rgba(199, 154, 31, 0.55); }
-        .bonus-offtrack { border: 3.5px solid rgba(199, 93, 80, 0.55); }
-        /* Bonus metric that has no data yet (e.g. TAT) — dashed outline so it's
-           visibly grouped with the other bonus cards without faking a tier. */
-        .bonus-pending  { border: 3.5px dashed rgba(154, 160, 166, 0.50); }
-
-        .bonus-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            padding: 2px 8px;
-            border-radius: 999px;
-            white-space: nowrap;
-        }
-        .bonus-pill::before {
-            content: "";
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            opacity: 0.85;
-        }
-        .bonus-pill.beating  { color: var(--bonus-beating);  background: rgba(27, 110, 59, 0.10); }
-        .bonus-pill.ontrack  { color: var(--bonus-ontrack);  background: rgba(79, 157, 150, 0.12); }
-        .bonus-pill.behind   { color: var(--bonus-behind);   background: rgba(199, 154, 31, 0.14); }
-        .bonus-pill.offtrack { color: var(--bonus-offtrack); background: rgba(199, 93, 80, 0.12); }
-        .bonus-pill.neutral  { color: var(--neutral); background: rgba(154, 160, 166, 0.10); font-weight: 600; }
-        /* Hero pill is a touch larger to match the big number, still subtle. */
-        .revenue-hero .bonus-pill { font-size: 11px; padding: 3px 11px; }
-
-        /* ===== Bonus cards: metric + its vs-prior on top, status group at bottom =====
-           Mat 2026-05-22:
-           - "% vs Prior" is tied to the metric → centered directly under the number.
-           - status indicator (pill) + Projection + Target are tied together as a
-             subtle group pinned to the BOTTOM of the card, left → right, so they
-             don't distract from the main metric. */
-        .metric-main {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 2px;
-            align-self: center;
-        }
-        .vs-prior { line-height: 1; font-size: 13px; }
-
-        /* Split card: big number on the LEFT, supporting detail on the RIGHT
-           (Mat 2026-08-10). Used by Claim Line Items % (top claim reasons) and
-           Installs w/ Claim or Reorder (claim vs reorder-only split). */
-        .metric-main.split-main {
-            flex-direction: row;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            width: 100%;
-        }
-        .metric-main.split-main .split-left {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 2px;
-            flex-shrink: 0;
-        }
-        .metric-main.split-main .split-left .value { font-size: 34px; }
-        .metric-main.split-main .split-right {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 1px;
-            padding-left: 10px;
-            border-left: 1px solid var(--border-soft);
-            text-align: left;
-        }
-        .split-right .coc-reasons-title { margin-bottom: 1px; }
-        .split-right .coc-reason { gap: 5px; }
-        .split-right .coc-reason .name { font-size: 10px; }
-        .split-right .coc-reason .share { font-size: 9px; }
-        /* Claim vs reorder-only stacks vertically in the right-hand slot. */
-        .split-right .cr-split {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 3px;
-            font-size: 12px;
-        }
-        .split-right .cr-split .cr-sep { display: none; }
-        .bonus-group {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: center;
-            gap: 4px 10px;
-            width: 100%;
-            padding-top: 5px;
-            border-top: 1px solid var(--border-soft);
-        }
-        .bonus-fig {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.01em;
-            white-space: nowrap;
-        }
-        /* Target = the 100% value: kept muted so the projection reads first. */
-        .bonus-fig.target { color: var(--text-secondary); font-weight: 600; }
-        /* Projection colored to the tier so it matches the status label. */
-        .bonus-fig.proj.beating  { color: var(--bonus-beating); }
-        .bonus-fig.proj.ontrack  { color: var(--bonus-ontrack); }
-        .bonus-fig.proj.behind   { color: var(--bonus-behind); }
-        .bonus-fig.proj.offtrack { color: var(--bonus-offtrack); }
-        /* Hero (System Sales) scales its vs-prior + bottom group up a touch.
-           Extra gaps so the bottom status group breathes like the other cards
-           and isn't crammed against the big number / bottom edge (Mat 2026-05-22). */
-        .revenue-hero .metric-main { gap: 4px; }
-        .revenue-hero .vs-prior { font-size: 15px; }
-        .revenue-hero .bonus-group { gap: 6px 18px; padding-top: 8px; }
-        .revenue-hero .bonus-fig { font-size: 13px; }
+        .coc-status.done { color: var(--text-secondary); background: rgba(154, 160, 166, 0.18); }
     </style>
 </head>
 <body>
@@ -718,50 +718,47 @@
         <!-- ===== HEADER ===== -->
         <div class="header">
             <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
-            <div class="updated">
-                Last refreshed<br>
-                <span class="stamp">Thu Aug 13 · 11:38 AM EST</span>
+            <div class="clock-block">
+                <div class="pulse"></div>
+                <div class="updated">
+                    Last refreshed
+                    <span class="stamp">Fri Aug 14 · 9:31 AM EST</span>
+                </div>
+                <div class="clock">
+        <span class="hm" id="clock-hm">--:--</span><span class="sec" id="clock-sec">:--</span><span class="mer" id="clock-mer">--</span>
+                </div>
             </div>
         </div>
 
         <!-- ===== AOD NETWORK ===== -->
         <div class="aod-network">
             <div class="section-label">AoD Network</div>
-            <div class="card revenue-hero bonus-ontrack">
+            <div class="card revenue-hero">
                 <div class="label">System Sales · Rolling 30 Days</div>
                 <div class="metric-main">
-                    <div class="value">$715,867</div>
-                    <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▼</span> -25.1%<span class="vs-label">vs prior</span></span></div>
-                </div>
-                <div class="bonus-group">
-                    <span class="bonus-pill ontrack">On Track</span>
-                    <span class="bonus-fig proj ontrack">Projection: $7.8M</span><span class="bonus-fig target">Target: $6.5M</span>
+                    <div class="value">$0</div>
+                    <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                 </div>
             </div>
             <div class="row-bottom">
                 <div class="card appointments">
                     <div class="label">Design Appointments · Next 7 Days</div>
-                    <div class="big-number">88</div>
+                    <div class="big-number">0</div>
                     <div class="card-foot">
-                        <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -20.7%<span class="vs-label">vs prior</span></span></div>
+                        <div class="indicator-row"><span class="indicator no-data">no prior data</span></div>
                     </div>
                 </div>
                 <div class="card top-lists">
                     <div>
                         <h3>Top Locations</h3>
                         <ol>
-                            <li><span class="name">Art of Drawers Sarasota</span><span class="count">15 appts</span></li>
-            <li><span class="name">Art of Drawers San Antonio</span><span class="count">9 appts</span></li>
-            <li><span class="name">Art of Drawers Orlando</span><span class="count">7 appts</span></li>
-            <li><span class="name">Art of Drawers Tampa</span><span class="count">7 appts</span></li>
+                            <li><span class="name" style="color:var(--text-secondary)">No appointments scheduled</span><span class="count"></span></li>
                         </ol>
                     </div>
                     <div>
                         <h3>Top Designers</h3>
                         <ol>
-                            <li><span class="name">Michael Mangione</span><span class="iata">SRQ</span><span class="count">11 appts</span></li>
-            <li><span class="name">Sid Kinghar (R)</span><span class="iata">TPA</span><span class="count">7 appts</span></li>
-            <li><span class="name">Kara Irish (R)</span><span class="iata">MCO</span><span class="count">6 appts</span></li>
+                            <li><span class="name" style="color:var(--text-secondary)">No appointments scheduled</span><span class="count"></span></li>
                         </ol>
                     </div>
                 </div>
@@ -775,22 +772,18 @@
             <div class="category-col">
                 <div class="col-header">Refacing <span class="note">R7</span></div>
                 <div class="stack has-2">
-                    <div class="metric-card bonus-behind">
+                    <div class="metric-card">
                         <div class="label">Refacing Revenue</div>
                         <div class="metric-main">
-                            <div class="value">$163</div>
-                            <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▼</span> -98.4%<span class="vs-label">vs prior</span></span></div>
-                        </div>
-                        <div class="bonus-group">
-                            <span class="bonus-pill behind">Behind</span>
-                            <span class="bonus-fig proj behind">Projection: $874K</span><span class="bonus-fig target">Target: $900K</span>
+                            <div class="value">$0</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Refacing Jobs</div>
-                        <div class="value">0</div>
-                        <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -100.0%<span class="vs-label">vs prior</span></span></div>
+                        <div class="metric-main">
+                            <div class="value">0</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                 </div>
@@ -799,19 +792,29 @@
             <!-- NETWORK LEAD TIMES -->
             <div class="category-col">
                 <div class="col-header">Network Lead Times <span class="note">R30</span></div>
-                <div class="stack has-2">
+                <div class="stack has-3">
                     <div class="metric-card">
                         <div class="label">Measure &rarr; Install (median)</div>
-                        <div class="value">9w 1d</div>
-                        <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-med"><span class="arrow">▲</span> +6.7%<span class="vs-label">vs prior</span></span></div>
+                        <div class="metric-main">
+                            <div class="value">—</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Measure &rarr; Install &lt; 10 wks</div>
-                        <div class="value">54.5%</div>
-                        <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-deep"><span class="arrow">▼</span> -13.8%<span class="vs-label">vs prior</span></span></div>
+                        <div class="metric-main">
+                            <div class="value">—</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
+                        </div>
+                    </div>
+                    <!-- Order -> Ship (TAT): status 5 -> status 6, nearest day.
+                         Moved here from Manufacturing (Mat 2026-08-14) — it is a
+                         lead time, and it frees Manufacturing to breathe on TV. -->
+                    <div class="metric-card">
+                        <div class="label">Order &rarr; Ship (TAT)</div>
+                        <div class="metric-main">
+                            <div class="value">—</div>
+                            <div class="vs-prior"><span class="indicator no-data">no prior data</span></div>
                         </div>
                     </div>
                 </div>
@@ -820,51 +823,38 @@
             <!-- MANUFACTURING -->
             <div class="category-col">
                 <div class="col-header">Manufacturing <span class="note">R30</span></div>
-                <div class="stack has-4 mfg-stack">
-                    <!-- Claim Line Items %: headline on the left, top claim reasons
-                         (items + share) on the right (Mat 2026-08-10 - moved here off
-                         the Claims + card so the reasons sit next to the rate). -->
-                    <div class="metric-card bonus-behind">
+                <div class="stack has-3 mfg-stack">
+                    <!-- Claim Line Items %: headline left, top claim reasons right. -->
+                    <div class="metric-card">
                         <div class="label">Claim Line Items %</div>
                         <div class="metric-main split-main">
                             <div class="split-left">
-                                <div class="value">7.92%</div>
-                                <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▲</span> +35.7%<span class="vs-label">vs prior</span></span></div>
+                                <div class="value">7.19%</div>
+                                <div class="vs-prior"><span class="indicator down-deep"><span class="arrow">▲</span> +28.3%<span class="vs-label">vs prior</span></span></div>
                             </div>
                             <div class="split-right">
-                                <div class="coc-reasons-title">Top Claim Reasons &middot; 30d</div>
-                                <div class="coc-reason"><span class="rank">1</span><span class="name">Poor Quality</span><span class="share">36 items · 24%</span></div><div class="coc-reason"><span class="rank">2</span><span class="name">Shipping Damage</span><span class="share">35 items · 23%</span></div><div class="coc-reason"><span class="rank">3</span><span class="name">Built Incorrectly</span><span class="share">32 items · 21%</span></div>
+                                <div class="coc-reasons-title">Top Reasons &middot; 30d</div>
+                                <div class="coc-reason"><span class="rank">1</span><span class="name">Poor Quality</span><span class="share">27%</span></div><div class="coc-reason"><span class="rank">2</span><span class="name">Shipping Damage</span><span class="share">24%</span></div><div class="coc-reason"><span class="rank">3</span><span class="name">Built Incorrectly</span><span class="share">17%</span></div>
                             </div>
                         </div>
-                        <div class="bonus-group">
-                            <span class="bonus-pill behind">Behind</span>
-                            <span class="bonus-fig proj behind">Projection: 4.8%</span><span class="bonus-fig target">Target: 4.0%</span>
-                        </div>
                     </div>
-                    <!-- % of R30 installs with a claim or reorder attached (Mat 2026-06-11).
-                         Split (Mat 2026-08-06): Claim % + Reorder-only % sum to the headline. -->
+                    <!-- % of R30 installs with a claim or reorder attached. -->
                     <div class="metric-card">
                         <div class="label">Installs w/ Claim or Reorder</div>
                         <div class="metric-main split-main">
                             <div class="split-left">
-                                <div class="value">37.8%</div>
+                                <div class="value">—</div>
+                                <div class="vs-prior"><span class="indicator no-data">not enough data yet</span></div>
                             </div>
                             <div class="split-right">
-                                <div class="cr-split"><span class="cr-part">Claim <b>28.1%</b></span><span class="cr-sep">·</span><span class="cr-part">Reorder <b>9.6%</b></span></div>
+                                <div class="cr-split"></div>
                             </div>
-                        </div>
-                        <div class="card-foot">
-                            <div class="indicator-row"><span class="indicator down-light"><span class="arrow">▲</span> +2.1%<span class="vs-label">vs prior</span></span></div>
                         </div>
                     </div>
                     <!-- Claims + : in-production claims whose parent order is itself a
-                         Claim or a Reorder (Mfg Partner Analysis sheet). Claim # is the
-                         claim's position in the remake chain — claim-on-claim = 2,
-                         claim-on-reorder = 2, claim-on-claim-on-claim = 3.
-                         Sits directly under the claims-rate card (Mat 2026-08-06);
-                         clicking opens the full all-claims overlay. -->
+                         Claim or a Reorder. Claim # = position in the remake chain. -->
                     <div class="metric-card claims-card claims-clickable" onclick="document.getElementById('coc-overlay').classList.add('open')" title="Click to see all in-production claims">
-                        <div class="label">Claims + <span class="note">claim on claim / reorder · in production</span><span class="coc-more">+3 more · click for all</span></div>
+                        <div class="label">Claims&nbsp;+ <span class="note">on claim / reorder</span><span class="coc-more">+3 more · click for all</span></div>
                         <table class="coc-table">
                             <thead>
                                 <tr><th>Job #</th><th>Mfg</th><th>Loc</th><th>Claim #</th></tr>
@@ -873,18 +863,6 @@
                                 <tr><td class="coc-job">C7218</td><td>CCF</td><td>OMH</td><td><span class="coc-no">2</span></td></tr><tr><td class="coc-job">C7193</td><td>Richelieu</td><td>MIN</td><td><span class="coc-no">2</span></td></tr><tr><td class="coc-job">C7188</td><td>Richelieu</td><td>MIN</td><td><span class="coc-no">2</span></td></tr>
                             </tbody>
                         </table>
-                    </div>
-                    <!-- TAT (Order -> Ship): bonus metric (status 5 -> status 6, nearest day). -->
-                    <div class="metric-card bonus-ontrack">
-                        <div class="label">Order &rarr; Ship (TAT)</div>
-                        <div class="metric-main">
-                            <div class="value">16d</div>
-                            <div class="vs-prior"><span class="indicator up-deep"><span class="arrow">▼</span> -15.8%<span class="vs-label">vs prior</span></span></div>
-                        </div>
-                        <div class="bonus-group">
-                            <span class="bonus-pill ontrack">On Track</span>
-                            <span class="bonus-fig proj ontrack">Projection: 16d</span><span class="bonus-fig target">Target: 18d</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -934,10 +912,56 @@
             </div>
         </div>
     </div>
+
     <script>
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') document.getElementById('coc-overlay').classList.remove('open');
         });
+
+        /* ---------------------------------------------------------------
+           ANTI-SLEEP (Mat 2026-08-14)
+           The board is cast to a TV that blanks itself when nothing on
+           screen changes. Three defenses, cheapest first:
+             1. A clock that repaints every second (visible motion).
+             2. CSS keyframe animations (pulse dot + header sweep) that keep
+                the compositor busy between ticks.
+             3. The Screen Wake Lock API where the TV browser supports it,
+                re-acquired whenever the tab becomes visible again.
+           The 5-minute <meta refresh> reloads the page, which re-runs all
+           three — so the lock never goes stale.
+           --------------------------------------------------------------- */
+        (function () {
+            var hm  = document.getElementById('clock-hm');
+            var sec = document.getElementById('clock-sec');
+            var mer = document.getElementById('clock-mer');
+
+            function tick() {
+                var d = new Date();
+                var h = d.getHours();
+                var m = d.getMinutes();
+                var s = d.getSeconds();
+                var ampm = h >= 12 ? 'PM' : 'AM';
+                var h12 = h % 12; if (h12 === 0) h12 = 12;
+                hm.textContent  = h12 + ':' + (m < 10 ? '0' + m : m);
+                sec.textContent = ':' + (s < 10 ? '0' + s : s);
+                mer.textContent = ampm;
+            }
+            tick();
+            setInterval(tick, 1000);
+
+            var lock = null;
+            function acquire() {
+                if (!('wakeLock' in navigator)) return;
+                navigator.wakeLock.request('screen').then(function (l) {
+                    lock = l;
+                    l.addEventListener('release', function () { lock = null; });
+                }).catch(function () { /* denied or unsupported — clock still ticks */ });
+            }
+            acquire();
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible' && lock === null) acquire();
+            });
+        })();
     </script>
 </body>
 </html>
