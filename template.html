@@ -9,7 +9,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        /* =====================================================================
+           TV BUILD — Mat 2026-08-14
+           Target: 48" x 28" panel (~55" 16:9) at 1080p, read from across a room.
+           Everything is sized in `rem` off a viewport-derived root, so the board
+           fills the panel identically at 1080p, 1440p or 4K without a rebuild.
+           At 1080p 1rem = 26px; the smallest text on the board is ~19px, which
+           is the practical floor for legibility at 8-10 ft on a 48"-wide screen.
+
+           ALL bonus-pace UI was removed on 2026-08-14 (pills, Projection/Target
+           figures, and the colored/dashed card outlines). Do not reintroduce
+           status chips on any card. Period-over-period arrows STAY and stay
+           colored — they are trend context, not bonus tracking.
+           ===================================================================== */
         :root {
+            /* 2.4vh => 25.9px at 1080p, 36px at 4K (clamped), 12px floor. */
+            font-size: clamp(12px, 2.4vh, 36px);
+
             --aod-navy:  #293f76;
             --aod-teal:  #88b6b1;
             --aod-linen: #f4ecd9;
@@ -17,23 +33,19 @@
             --bg-page:    var(--aod-linen);
             --bg-card:    #ffffff;
             --text-primary:   var(--aod-navy);
-            --text-secondary: #6a7080;
+            --text-secondary: #5f6678;
             --text-on-dark:   #ffffff;
-            --border-soft:    rgba(41, 63, 118, 0.10);
+            --border-soft:    rgba(41, 63, 118, 0.12);
 
-            --up-light: #b3d4d0;
-            --up-med:   #4f9d96;
-            --up-deep:  #2c736d;
-            --down-light: #e6b0a8;
-            --down-med:   #c75d50;
-            --down-deep:  #963a2e;
-            --neutral:    #9aa0a6;
-
-            /* Bonus-pace tiers (kept deliberately muted — the board should not shout) */
-            --bonus-beating:  #1f5e58;  /* 115%+  : way ahead */
-            --bonus-ontrack:  #4f9d96;  /* 100-114%: on track */
-            --bonus-behind:   #c79a1f;  /* 85-99% : behind */
-            --bonus-offtrack: #c75d50;  /* <85%   : off track */
+            /* Trend colors nudged up in saturation vs the desktop build — TV
+               panels wash out muted tones at viewing distance. */
+            --up-light: #6aa9a3;
+            --up-med:   #35857d;
+            --up-deep:  #1f6b64;
+            --down-light: #d08074;
+            --down-med:   #bf4436;
+            --down-deep:  #96271a;
+            --neutral:    #8b919c;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -51,174 +63,227 @@
 
         .dashboard {
             display: grid;
-            grid-template-rows: 52px 1fr 1fr;
+            grid-template-rows: 8.2vh 0.86fr 1.14fr;
             height: 100vh;
-            padding: 10px;
-            gap: 8px;
+            padding: 0.9vh 0.7vw;
+            gap: 0.85vh;
         }
 
         /* ===== Header ===== */
         .header {
             background: var(--aod-navy);
             color: var(--text-on-dark);
-            border-radius: 12px;
-            padding: 0 24px;
+            border-radius: 0.5rem;
+            padding: 0 1.2rem 0 1.4rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 1rem;
+            overflow: hidden;
+            position: relative;
         }
         .header .brand {
-            font-size: 20px;
-            font-weight: 600;
-            letter-spacing: 0.18em;
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
+            white-space: nowrap;
         }
         .header .brand .accent { color: var(--aod-teal); font-weight: 500; }
-        .header .updated {
-            font-size: 11px;
-            color: rgba(255,255,255,0.55);
-            text-align: right;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            line-height: 1.4;
-        }
-        .header .updated .stamp { font-weight: 600; color: rgba(255,255,255,0.95); letter-spacing: 0.01em; text-transform: none; font-size: 13px; }
 
-        /* ===== Section label (above each block) ===== */
+        /* --- Live clock: the anti-sleep element. It repaints every second so
+               the TV always sees on-screen motion and never drops to standby. --- */
+        .header .clock-block {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-left: auto;
+        }
+        .header .updated {
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.6);
+            text-align: right;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+        .header .updated .stamp {
+            display: block;
+            font-weight: 700;
+            color: rgba(255,255,255,0.95);
+            letter-spacing: 0.01em;
+            text-transform: none;
+            font-size: 0.82rem;
+        }
+        .header .clock {
+            display: flex;
+            align-items: baseline;
+            gap: 0;
+            padding-left: 1rem;
+            border-left: 1px solid rgba(255,255,255,0.22);
+        }
+        .header .clock .hm {
+            font-size: 2.05rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.03em;
+            font-variant-numeric: tabular-nums;
+        }
+        /* Seconds are the piece that actually ticks — teal so the movement is
+           visible from across the room without being loud. */
+        .header .clock .sec {
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--aod-teal);
+            font-variant-numeric: tabular-nums;
+            min-width: 1.45rem;
+        }
+        .header .clock .mer {
+            margin-left: 0.35rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: rgba(255,255,255,0.65);
+        }
+        .header .pulse {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: var(--aod-teal);
+            flex-shrink: 0;
+            animation: livepulse 2s ease-in-out infinite;
+        }
+        @keyframes livepulse {
+            0%, 100% { opacity: 0.25; transform: scale(0.75); }
+            50%      { opacity: 1;    transform: scale(1.15); }
+        }
+        /* A slow sweep across the header. Second continuously-animating element
+           so there is motion even in the seconds between clock ticks. */
+        .header::after {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 22%;
+            background: linear-gradient(90deg, transparent, rgba(136,182,177,0.16), transparent);
+            animation: sweep 9s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes sweep {
+            0%   { left: -25%; }
+            100% { left: 105%; }
+        }
+
+        /* ===== Section label ===== */
         .section-label {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.28em;
+            gap: 0.45rem;
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.26em;
             color: var(--aod-navy);
             text-transform: uppercase;
-            margin: 0 2px 4px;
+            margin: 0 0.1rem;
         }
         .section-label::before {
             content: "";
-            width: 16px;
+            width: 1rem;
             height: 2px;
             background: var(--aod-teal);
             border-radius: 1px;
         }
-        .section-label .note {
-            font-size: 9px;
-            font-weight: 500;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-        }
 
-        /* ===== AoD Network section (top half) ===== */
+        /* ===== AoD Network (top block) ===== */
         .aod-network {
             display: grid;
-            grid-template-rows: auto 1.05fr 1fr;
-            gap: 8px;
+            grid-template-rows: auto 1.02fr 1fr;
+            gap: 0.8vh;
             min-height: 0;
         }
         .aod-network .row-bottom {
             display: grid;
-            grid-template-columns: 1fr 1.3fr;
-            gap: 8px;
+            grid-template-columns: 1fr 1.45fr;
+            gap: 0.6vw;
             min-height: 0;
         }
 
         .card {
             background: var(--bg-card);
-            border-radius: 12px;
+            border-radius: 0.5rem;
             border: 1px solid var(--border-soft);
-            padding: 12px 18px;
+            padding: 0.35rem 0.9rem;
             display: flex;
             flex-direction: column;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.05);
             min-height: 0;
         }
 
-        .card .label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.2em;
+        .card .label,
+        .metric-card .label {
+            font-size: 0.76rem;
+            font-weight: 800;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
             color: var(--text-secondary);
-        }
-        .card .sublabel {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-            letter-spacing: 0.04em;
+            line-height: 1.2;
         }
 
-        /* The metric value is the visual center of every card. */
-        .card-foot {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-
-        /* Revenue hero (System Sales) — centered */
+        /* ===== Hero: System Sales ===== */
         .revenue-hero {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            justify-items: center;
+            align-content: center;
             text-align: center;
-            align-items: center;
-            justify-content: center;
-            padding: 12px 24px;
+            padding: 0.2rem 1rem;
+            gap: 0.1rem;
         }
-        .revenue-hero .label { font-size: 11px; }
+        .revenue-hero .label { font-size: 0.92rem; letter-spacing: 0.2em; }
         .revenue-hero .value {
-            font-size: 88px;
-            font-weight: 800;
-            line-height: 1.0;
-            margin-top: 2px;
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 1;
             color: var(--aod-navy);
-            letter-spacing: -0.035em;
+            letter-spacing: -0.04em;
         }
-        .revenue-hero .indicator-row {
-            margin-top: 4px;
-            font-size: 17px;
-        }
+        .revenue-hero .vs-prior { font-size: 1.05rem; }
 
-        /* Appointments — centered */
+        /* ===== Appointments ===== */
         .appointments {
             text-align: center;
             align-items: center;
             justify-content: center;
+            gap: 0.1rem;
         }
         .appointments .big-number {
-            font-size: 72px;
-            font-weight: 800;
+            font-size: 3.9rem;
+            font-weight: 900;
             line-height: 1;
-            margin-top: 2px;
-            letter-spacing: -0.035em;
+            letter-spacing: -0.04em;
             color: var(--aod-navy);
         }
-        .appointments .indicator-row {
-            margin-top: 2px;
-            font-size: 14px;
-        }
+        .appointments .indicator-row { font-size: 0.95rem; }
 
-        /* Top lists */
+        /* ===== Top lists ===== */
         .top-lists {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            padding: 14px 18px;
+            gap: 1.2rem;
+            padding: 0.55rem 1rem;
             align-content: stretch;
         }
-        .top-lists > div {
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
+        .top-lists > div { display: flex; flex-direction: column; min-height: 0; }
         .top-lists h3 {
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 0.68rem;
+            font-weight: 800;
             letter-spacing: 0.18em;
-            color: var(--aod-teal);
+            color: var(--up-med);
             text-transform: uppercase;
-            margin-bottom: 6px;
+            margin-bottom: 0.2rem;
         }
         .top-lists ol {
             list-style: none;
@@ -230,206 +295,488 @@
         }
         .top-lists li {
             counter-increment: rank;
-            font-size: 16px;
-            font-weight: 500;
-            padding: 6px 0;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.2rem 0;
             border-bottom: 1px solid var(--border-soft);
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 0.4rem;
+            min-width: 0;
         }
         .top-lists li:last-child { border-bottom: 0; }
         .top-lists li::before {
             content: counter(rank);
-            font-weight: 700;
-            font-size: 10px;
+            font-weight: 800;
+            font-size: 0.62rem;
             color: var(--aod-navy);
-            background: rgba(136, 182, 177, 0.22);
-            width: 18px;
-            height: 18px;
+            background: rgba(136, 182, 177, 0.28);
+            width: 1.15rem;
+            height: 1.15rem;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
         }
-        .top-lists li .name { flex: 1; color: var(--aod-navy); font-weight: 500; }
+        .top-lists li .name {
+            flex: 1;
+            color: var(--aod-navy);
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .top-lists li .iata {
-            font-size: 9px;
-            font-weight: 700;
+            font-size: 0.58rem;
+            font-weight: 800;
             letter-spacing: 0.06em;
             color: var(--aod-navy);
             background: var(--aod-linen);
-            border: 1px solid rgba(41, 63, 118, 0.15);
-            padding: 1px 5px;
-            border-radius: 4px;
+            border: 1px solid rgba(41, 63, 118, 0.16);
+            padding: 0.08rem 0.3rem;
+            border-radius: 0.2rem;
+            flex-shrink: 0;
         }
         .top-lists li .count {
-            font-size: 11px;
+            font-size: 0.72rem;
             color: var(--text-secondary);
-            font-weight: 600;
-            letter-spacing: 0.02em;
+            font-weight: 700;
+            flex-shrink: 0;
         }
 
         /* ===== Bottom: 4 category columns ===== */
         .categories {
             display: grid;
-            grid-template-columns: 1fr 1fr 0.85fr 1.1fr;
-            gap: 8px;
+            grid-template-columns: 1fr 1fr 1.22fr 1fr;
+            gap: 0.6vw;
             min-height: 0;
         }
         .category-col {
             display: grid;
             grid-template-rows: auto 1fr;
-            gap: 5px;
+            gap: 0.4vh;
             min-height: 0;
         }
         .category-col .col-header {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.22em;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.2em;
             color: var(--aod-navy);
             text-transform: uppercase;
-            padding: 2px 2px 0;
+            padding: 0 0.15rem;
             display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .category-col .col-header::before {
-            content: "";
-            width: 14px;
-            height: 2px;
-            background: var(--aod-teal);
-            border-radius: 1px;
+            align-items: baseline;
+            gap: 0.5rem;
+            white-space: nowrap;
         }
         .category-col .col-header .note {
-            font-size: 9px;
-            font-weight: 500;
-            letter-spacing: 0.12em;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
             color: var(--text-secondary);
         }
         .category-col .stack {
             display: grid;
-            gap: 6px;
+            gap: 0.55vh;
             min-height: 0;
         }
+        .category-col .stack.has-1 { grid-template-rows: 1fr; }
         .category-col .stack.has-2 { grid-template-rows: 1fr 1fr; }
         .category-col .stack.has-3 { grid-template-rows: 1fr 1fr 1fr; }
-        .category-col .stack.has-1 { grid-template-rows: 1fr; }
+        .category-col .stack.has-4 { grid-template-rows: 1fr 1fr 1fr 1fr; }
+        /* Manufacturing: Claim % / Installs split / Claims + table.
+           Order -> Ship (TAT) lives in Network Lead Times — it IS a lead time,
+           and 4 cards in one column cannot hold TV-legible type at 1080p. */
+        .category-col .stack.mfg-stack { grid-template-rows: 1fr 1fr 1.32fr; }
+        /* Network Lead Times: Measure->Install dual / Order->Ship / Overdue table.
+           Same 1.32fr bottom row as Manufacturing so the two table cards line up. */
+        .category-col .stack.lead-stack { grid-template-rows: 1fr 1fr 1.32fr; }
+        /* Shipping: a two-tile stat row on top, Surcharges to Chase below.
+           Mat 2026-09-04 - the chase table needs the height more than the tiles do. */
+        .category-col .stack.ship-stack { grid-template-rows: 1fr 2.15fr; }
+        .ship-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5vw;
+            min-height: 0;
+        }
 
-        /* Metric card — number centered horizontally + vertically via 3-row grid. */
+        /* ===== Metric card ===== */
         .metric-card {
             background: var(--bg-card);
-            border-radius: 12px;
+            border-radius: 0.5rem;
             border: 1px solid var(--border-soft);
-            padding: 8px 14px;
+            padding: 0.4rem 0.7rem;
             display: grid;
             grid-template-rows: auto 1fr auto;
             justify-items: center;
+            align-items: center;
             text-align: center;
             position: relative;
             overflow: hidden;
             min-height: 0;
-            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.04);
-        }
-        .metric-card .label {
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: var(--text-secondary);
-        }
-        .metric-card .sublabel {
-            font-size: 10px;
-            color: var(--text-secondary);
-            letter-spacing: 0.04em;
+            box-shadow: 0 1px 0 rgba(41, 63, 118, 0.05);
         }
         .metric-card .value {
             align-self: center;
-            font-size: 40px;
-            font-weight: 800;
+            justify-self: center;
+            font-size: 2.5rem;
+            font-weight: 900;
             line-height: 1;
-            letter-spacing: -0.03em;
+            letter-spacing: -0.035em;
             color: var(--aod-navy);
+            text-align: center;
         }
-        .metric-card .indicator-row { font-size: 13px; }
+        .metric-card .indicator-row { font-size: 0.8rem; }
         .metric-card .ship-span {
-            font-size: 9px;
+            font-size: 0.56rem;
             color: var(--text-secondary);
-            font-weight: 600;
-            letter-spacing: 0.06em;
+            font-weight: 700;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
         }
-        /* Manufacturing column has only 1 card — make it look intentionally large */
-        .category-col .stack.has-1 .metric-card .value { font-size: 60px; }
-        .category-col .stack.has-1 .metric-card .indicator-row { font-size: 16px; }
+        .card-foot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.12rem;
+        }
+        .category-col .stack.has-1 .metric-card .value { font-size: 3.4rem; }
+        /* Refacing + Shipping only carry 2 cards each — use the headroom. */
+        .categories .stack.has-2 .metric-card .value { font-size: 2.95rem; }
 
-        /* ===== Period-over-period indicators ===== */
+        /* Metric body: number + its vs-prior arrow, vertically centered. */
+        .metric-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.12rem;
+            align-self: center;
+        }
+        .vs-prior { line-height: 1; font-size: 0.8rem; }
+
+        /* Split card: big number LEFT, supporting detail RIGHT. */
+        .metric-main.split-main {
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        .metric-main.split-main .split-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.12rem;
+            flex-shrink: 0;
+        }
+        .metric-main.split-main .split-left .value { font-size: 2.05rem; }
+        .metric-main.split-main .split-right {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.06rem;
+            padding-left: 0.55rem;
+            border-left: 1px solid var(--border-soft);
+            text-align: left;
+        }
+
+        /* Dual card: two equal halves, each its own sub-label + number.
+           Used by Measure -> Install (median | % under 10 weeks). */
+        .metric-main.dual-main {
+            flex-direction: row;
+            align-items: stretch;
+            justify-content: center;
+            width: 100%;
+            gap: 0;
+        }
+        .dual-half {
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.08rem;
+        }
+        .dual-half + .dual-half { border-left: 1px solid var(--border-soft); }
+        .dual-half .value { font-size: 2.15rem; }
+        .dual-half .sub-label {
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        /* Shipping stat tiles are half-width, so everything steps down a notch
+           and the label is allowed to wrap onto a second line. */
+        .ship-row .metric-card { padding: 0.35rem 0.4rem; }
+        .ship-row .metric-card .label {
+            font-size: 0.6rem;
+            letter-spacing: 0.06em;
+            line-height: 1.15;
+        }
+        .ship-row .metric-card .value { font-size: 2.1rem; }
+        .ship-row .metric-card .indicator-row { font-size: 0.68rem; }
+        .ship-row .metric-card .ship-span { font-size: 0.5rem; }
+
+        /* Surcharges to Chase: four columns in one half-column card, so the type
+           steps down and the "why" column truncates instead of pushing the
+           table wider than its card. */
+        .ship-stack .metric-card.claims-card > .label { font-size: 0.64rem; letter-spacing: 0.08em; }
+        .claims-card .coc-table.chase-table td { font-size: 0.66rem; padding: 0.09rem 0.18rem; }
+        .claims-card .coc-table.chase-table th { font-size: 0.5rem; padding: 0 0.18rem 0.1rem; }
+        .claims-card .coc-table.chase-table { table-layout: fixed; }
+        .claims-card .coc-table.chase-table td,
+        .claims-card .coc-table.chase-table th { overflow: hidden; text-overflow: ellipsis; }
+        .claims-card .coc-table.chase-table .c-track { width: 36%; }
+        .claims-card .coc-table.chase-table .c-mfg   { width: 16%; }
+        .claims-card .coc-table.chase-table .c-why   { width: 30%; }
+        .claims-card .coc-table.chase-table .c-amt   { width: 19%; text-align: right; }
+
+        /* ===== Claims + card ===== */
+        .metric-card.claims-card {
+            grid-template-rows: auto 1fr;
+            align-items: start;
+            padding: 0.35rem 0.6rem 0.4rem;
+            line-height: 1.2;
+        }
+        /* The label must not wrap — a second line eats a table row. */
+        .metric-card.claims-card > .label {
+            white-space: nowrap;
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+        }
+        .metric-card.claims-card > .label .note {
+            font-size: 0.56rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: none;
+            color: var(--text-secondary);
+        }
+        .coc-more {
+            font-size: 0.58rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: none;
+            color: var(--up-med);
+            margin-left: 0.3rem;
+            white-space: nowrap;
+        }
+        .metric-card.claims-card.claims-clickable { cursor: pointer; }
+        .metric-card.claims-card.claims-clickable:hover {
+            border-color: var(--aod-teal);
+            box-shadow: 0 2px 10px rgba(41, 63, 118, 0.12);
+        }
+        .coc-table {
+            width: 100%;
+            border-collapse: collapse;
+            align-self: start;
+            margin-top: 0.15rem;
+        }
+        .coc-table th {
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            padding: 0 0.25rem 0.12rem;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .coc-table td {
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 1.25;
+            color: var(--aod-navy);
+            padding: 0.1rem 0.25rem;
+            border-bottom: 1px solid rgba(41, 63, 118, 0.06);
+            white-space: nowrap;
+        }
+        .coc-table tr:last-child td { border-bottom: 0; }
+        .coc-table .coc-job { font-weight: 900; }
+        .coc-table .coc-empty {
+            font-size: 0.62rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        .coc-no {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.05rem;
+            height: 1.05rem;
+            padding: 0 0.22rem;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            font-weight: 900;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.28);
+        }
+        .coc-no.hot { color: #fff; background: var(--down-med); }
+
+        /* Top claim reasons mini-list (right side of the Claim % card). */
+        .coc-reasons { width: 100%; display: flex; flex-direction: column; }
+        .coc-reasons-title {
+            font-size: 0.55rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--up-med);
+            margin-bottom: 0.1rem;
+        }
+        .coc-reason {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            line-height: 1.3;
+        }
+        .coc-reason .rank {
+            font-weight: 800;
+            font-size: 0.52rem;
+            color: var(--aod-navy);
+            background: rgba(136, 182, 177, 0.28);
+            width: 0.85rem;
+            height: 0.85rem;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .coc-reason .name {
+            flex: 1;
+            text-align: left;
+            font-weight: 700;
+            color: var(--aod-navy);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .coc-reason .share {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        /* Installs w/ Claim or Reorder: the claim vs reorder-only split. */
+        .cr-split {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.15rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .cr-split b { font-weight: 900; color: var(--aod-navy); }
+        .cr-split .cr-sep { display: none; }
+
+        /* ===== Period-over-period indicators (kept — trend context) ===== */
         .indicator {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            font-weight: 700;
-            padding: 2px 9px;
+            gap: 0.25rem;
+            font-weight: 800;
+            padding: 0.1rem 0.5rem;
             border-radius: 999px;
             background: rgba(41, 63, 118, 0.06);
             letter-spacing: 0.01em;
+            white-space: nowrap;
         }
         .indicator .arrow { font-size: 1.05em; line-height: 1; }
-        .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.14); }
-        .indicator.up-med    { color: var(--up-med);   background: rgba(79, 157, 150, 0.14); }
-        .indicator.up-deep   { color: var(--up-deep);  background: rgba(44, 115, 109, 0.14); }
-        .indicator.down-light{ color: var(--down-light); background: rgba(230, 176, 168, 0.18); }
-        .indicator.down-med  { color: var(--down-med);   background: rgba(199, 93, 80, 0.14); }
-        .indicator.down-deep { color: var(--down-deep);  background: rgba(150, 58, 46, 0.14); }
-        .indicator.no-data   { color: var(--neutral); font-weight: 500; font-style: italic; background: transparent; padding: 0; }
+        .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.20); }
+        .indicator.up-med    { color: var(--up-med);   background: rgba(53, 133, 125, 0.16); }
+        .indicator.up-deep   { color: var(--up-deep);  background: rgba(31, 107, 100, 0.16); }
+        .indicator.down-light{ color: var(--down-light); background: rgba(208, 128, 116, 0.20); }
+        .indicator.down-med  { color: var(--down-med);   background: rgba(191, 68, 54, 0.14); }
+        .indicator.down-deep { color: var(--down-deep);  background: rgba(150, 39, 26, 0.14); }
+        .indicator.no-data   { color: var(--neutral); font-weight: 600; font-style: italic; background: transparent; padding: 0; }
 
         .vs-label {
-            font-size: 0.7em;
+            font-size: 0.72em;
             color: var(--text-secondary);
-            font-weight: 500;
-            margin-left: 3px;
+            font-weight: 600;
+            margin-left: 0.15rem;
             letter-spacing: 0.04em;
             text-transform: uppercase;
         }
 
-        /* ===== Bonus-pace status (subtle) ===== */
-        /* A thin colored outline on the card + a small pill. Deliberately quiet. */
-        .bonus-beating  { border: 3.5px solid rgba(31, 94, 88, 0.55); }
-        .bonus-ontrack  { border: 3.5px solid rgba(79, 157, 150, 0.55); }
-        .bonus-behind   { border: 3.5px solid rgba(199, 154, 31, 0.55); }
-        .bonus-offtrack { border: 3.5px solid rgba(199, 93, 80, 0.55); }
-        /* Bonus metric that has no data yet (e.g. TAT) — dashed outline so it's
-           visibly grouped with the other bonus cards without faking a tier. */
-        .bonus-pending  { border: 3.5px dashed rgba(154, 160, 166, 0.50); }
-
-        .bonus-pill {
-            display: inline-flex;
+        /* ===== Claims overlay ===== */
+        .coc-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(41, 63, 118, 0.45);
+            display: none;
             align-items: center;
-            gap: 5px;
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
+            justify-content: center;
+            z-index: 50;
+        }
+        .coc-overlay.open { display: flex; }
+        .coc-modal {
+            background: var(--bg-card);
+            border-radius: 0.6rem;
+            width: min(70vw, 92vw);
+            max-height: 84vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 40px rgba(41, 63, 118, 0.35);
+            overflow: hidden;
+        }
+        .coc-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.7rem 0.9rem 0.5rem;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .coc-modal-head .label {
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
-            padding: 2px 8px;
+            color: var(--text-secondary);
+        }
+        .coc-modal-close {
+            border: 0;
+            background: var(--aod-linen);
+            color: var(--aod-navy);
+            font-family: inherit;
+            font-weight: 800;
+            font-size: 0.72rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 999px;
+            cursor: pointer;
+        }
+        .coc-modal-body { overflow-y: auto; padding: 0.3rem 0.9rem 0.8rem; }
+        .coc-modal-body .coc-table td { font-size: 0.78rem; padding: 0.22rem 0.35rem; }
+        .coc-modal-body .coc-table th {
+            font-size: 0.6rem;
+            padding: 0.35rem 0.35rem 0.22rem;
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+        }
+        .coc-status {
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 0.1rem 0.45rem;
             border-radius: 999px;
             white-space: nowrap;
         }
-        .bonus-pill::before {
-            content: "";
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            opacity: 0.85;
-        }
-        .bonus-pill.beating  { color: var(--bonus-beating);  background: rgba(31, 94, 88, 0.10); }
-        .bonus-pill.ontrack  { color: var(--bonus-ontrack);  background: rgba(79, 157, 150, 0.12); }
-        .bonus-pill.behind   { color: var(--bonus-behind);   background: rgba(199, 154, 31, 0.14); }
-        .bonus-pill.offtrack { color: var(--bonus-offtrack); background: rgba(199, 93, 80, 0.12); }
-        .bonus-pill.neutral  { color: var(--neutral); background: rgba(154, 160, 166, 0.10); font-weight: 600; }
-        /* Hero pill is a touch larger to match the big number, still subtle. */
-        .revenue-hero .bonus-pill { font-size: 11px; padding: 3px 11px; }
+        .coc-status.prod { color: #fff; background: var(--up-med); }
+        .coc-status.done { color: var(--text-secondary); background: rgba(154, 160, 166, 0.18); }
     </style>
 </head>
 <body>
@@ -438,21 +785,26 @@
         <!-- ===== HEADER ===== -->
         <div class="header">
             <div class="brand">Art of Drawers<span class="accent"> · Operations</span></div>
-            <div class="updated">
-                Last refreshed<br>
-                <span class="stamp">{{LAST_UPDATED}}</span>
+            <div class="clock-block">
+                <div class="pulse"></div>
+                <div class="updated">
+                    Last refreshed
+                    <span class="stamp">{{LAST_UPDATED}}</span>
+                </div>
+                <div class="clock">
+        <span class="hm" id="clock-hm">--:--</span><span class="sec" id="clock-sec">:--</span><span class="mer" id="clock-mer">--</span>
+                </div>
             </div>
         </div>
 
         <!-- ===== AOD NETWORK ===== -->
         <div class="aod-network">
             <div class="section-label">AoD Network</div>
-            <div class="card revenue-hero {{REVENUE_BONUS_CLASS}}">
+            <div class="card revenue-hero">
                 <div class="label">System Sales · Rolling 30 Days</div>
-                <div class="value">{{REVENUE_VALUE}}</div>
-                <div class="card-foot">
-                    <div class="indicator-row">{{REVENUE_INDICATOR}}</div>
-                    {{REVENUE_BONUS_PILL}}
+                <div class="metric-main">
+                    <div class="value">{{REVENUE_VALUE}}</div>
+                    <div class="vs-prior">{{REVENUE_INDICATOR}}</div>
                 </div>
             </div>
             <div class="row-bottom">
@@ -487,19 +839,18 @@
             <div class="category-col">
                 <div class="col-header">Refacing <span class="note">R7</span></div>
                 <div class="stack has-2">
-                    <div class="metric-card {{REFACING_BONUS_CLASS}}">
+                    <div class="metric-card">
                         <div class="label">Refacing Revenue</div>
-                        <div class="value">{{REFACING_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{REFACING_INDICATOR}}</div>
-                            {{REFACING_BONUS_PILL}}
+                        <div class="metric-main">
+                            <div class="value">{{REFACING_VALUE}}</div>
+                            <div class="vs-prior">{{REFACING_INDICATOR}}</div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="label">Refacing Jobs</div>
-                        <div class="value">{{REFACING_JOBS_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{REFACING_JOBS_INDICATOR}}</div>
+                        <div class="metric-main">
+                            <div class="value">{{REFACING_JOBS_VALUE}}</div>
+                            <div class="vs-prior">{{REFACING_JOBS_INDICATOR}}</div>
                         </div>
                     </div>
                 </div>
@@ -508,20 +859,47 @@
             <!-- NETWORK LEAD TIMES -->
             <div class="category-col">
                 <div class="col-header">Network Lead Times <span class="note">R30</span></div>
-                <div class="stack has-2">
+                <div class="stack has-3 lead-stack">
+                    <!-- Measure -> Install, one card, two halves (Mat 2026-09-04):
+                         median on the left, % delivered under 10 weeks on the right. -->
                     <div class="metric-card">
-                        <div class="label">Sold &rarr; Install (median)</div>
-                        <div class="value">{{S2I_MEDIAN_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{S2I_MEDIAN_INDICATOR}}</div>
+                        <div class="label">Measure &rarr; Install</div>
+                        <div class="metric-main dual-main">
+                            <div class="dual-half">
+                                <div class="sub-label">Median</div>
+                                <div class="value">{{MTI_MEDIAN_VALUE}}</div>
+                                <div class="vs-prior">{{MTI_MEDIAN_INDICATOR}}</div>
+                            </div>
+                            <div class="dual-half">
+                                <div class="sub-label">&lt; 10 wks</div>
+                                <div class="value">{{MTI_PCT_VALUE}}</div>
+                                <div class="vs-prior">{{MTI_PCT_INDICATOR}}</div>
+                            </div>
                         </div>
                     </div>
+                    <!-- Order -> Ship (TAT): status 5 -> status 6, nearest day.
+                         Moved here from Manufacturing (Mat 2026-08-14) — it is a
+                         lead time, and it frees Manufacturing to breathe on TV. -->
                     <div class="metric-card">
-                        <div class="label">Sold &rarr; Install &lt; 10 wks</div>
-                        <div class="value">{{S2I_PCT_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{S2I_PCT_INDICATOR}}</div>
+                        <div class="label">Order &rarr; Ship (TAT)</div>
+                        <div class="metric-main">
+                            <div class="value">{{TAT_VALUE}}</div>
+                            <div class="vs-prior">{{TAT_INDICATOR}}</div>
                         </div>
+                    </div>
+                    <!-- Overdue Orders: the Mfg Partner sheet's Overdue Orders tab,
+                         one block per manufacturer, joined to the Orders Tracker tab
+                         for the location code. Clickable like Claims + . -->
+                    <div class="metric-card claims-card {{OVERDUE_CLICKABLE_CLASS}}" {{OVERDUE_CLICK_ATTRS}}>
+                        <div class="label">Overdue Orders{{OVERDUE_MORE_NOTE}}</div>
+                        <table class="coc-table">
+                            <thead>
+                                <tr><th>Job #</th><th>Mfg</th><th>Loc</th><th>Days</th></tr>
+                            </thead>
+                            <tbody>
+                                {{OVERDUE_TABLE_ROWS}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -529,59 +907,207 @@
             <!-- MANUFACTURING -->
             <div class="category-col">
                 <div class="col-header">Manufacturing <span class="note">R30</span></div>
-                <div class="stack has-2">
-                    <div class="metric-card {{CLAIM_BONUS_CLASS}}">
+                <div class="stack has-3 mfg-stack">
+                    <!-- Claim Line Items %: headline left, top claim reasons right. -->
+                    <div class="metric-card">
                         <div class="label">Claim Line Items %</div>
-                        <div class="value">{{CLAIM_PCT_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{CLAIM_PCT_INDICATOR}}</div>
-                            {{CLAIM_BONUS_PILL}}
+                        <div class="metric-main split-main">
+                            <div class="split-left">
+                                <div class="value">{{CLAIM_PCT_VALUE}}</div>
+                                <div class="vs-prior">{{CLAIM_PCT_INDICATOR}}</div>
+                            </div>
+                            <div class="split-right">
+                                <div class="coc-reasons-title">Top Reasons &middot; 30d</div>
+                                {{TOP_CLAIM_REASONS}}
+                            </div>
                         </div>
                     </div>
-                    <!-- TAT (Order -> Ship): bonus metric, awaiting query/skill (Mat to wire). -->
-                    <div class="metric-card {{TAT_BONUS_CLASS}}">
-                        <div class="label">Order &rarr; Ship (TAT)</div>
-                        <div class="value">{{TAT_VALUE}}</div>
-                        <div class="card-foot">
-                            {{TAT_BONUS_PILL}}
-                            <div class="sublabel">{{TAT_SUBLABEL}}</div>
+                    <!-- % of R30 installs with a claim or reorder attached. -->
+                    <div class="metric-card">
+                        <div class="label">Installs w/ Claim or Reorder</div>
+                        <div class="metric-main split-main">
+                            <div class="split-left">
+                                <div class="value">{{CLAIM_REORDER_VALUE}}</div>
+                                <div class="vs-prior">{{CLAIM_REORDER_INDICATOR}}</div>
+                            </div>
+                            <div class="split-right">
+                                <div class="cr-split">{{CLAIM_REORDER_SPLIT}}</div>
+                            </div>
                         </div>
+                    </div>
+                    <!-- Claims + : in-production claims whose parent order is itself a
+                         Claim or a Reorder. Claim # = position in the remake chain. -->
+                    <div class="metric-card claims-card {{COC_CLICKABLE_CLASS}}" {{COC_CLICK_ATTRS}}>
+                        <div class="label">Claims&nbsp;+ <span class="note">on claim / reorder</span>{{COC_MORE_NOTE}}</div>
+                        <table class="coc-table">
+                            <thead>
+                                <tr><th>Job #</th><th>Mfg</th><th>Loc</th><th>Claim #</th></tr>
+                            </thead>
+                            <tbody>
+                                {{COC_TABLE_ROWS}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
             <!-- SHIPPING -->
             <div class="category-col">
-                <div class="col-header">Shipping <span class="note">R14 · WWEX</span></div>
-                <div class="stack has-3">
-                    <div class="metric-card">
-                        <div class="label">Cost per lb</div>
-                        <div class="value">{{COST_PER_LB_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{COST_PER_LB_INDICATOR}}</div>
-                            <div class="ship-span">{{SHIP_SPAN}}</div>
+                <div class="col-header">Shipping <span class="note">R30 · WWEX</span></div>
+                <div class="stack ship-stack">
+                    <!-- Two half-width stat tiles so the chase table below gets the
+                         height it needs (Mat 2026-09-04). -->
+                    <div class="ship-row">
+                        <div class="metric-card">
+                            <div class="label">Pallet %</div>
+                            <div class="value">{{PALLET_PCT_VALUE}}</div>
+                            <div class="card-foot">
+                                <div class="indicator-row">{{PALLET_PCT_INDICATOR}}</div>
+                                <div class="ship-span">{{SHIP_SPAN}}</div>
+                            </div>
+                        </div>
+                        <!-- Surcharges the Home Office fronts: everything that is not
+                             fuel and not memo-passed through to the FP. Same
+                             classification as the Mon/Wed ops report. -->
+                        <div class="metric-card">
+                            <div class="label">Paid by Home Office</div>
+                            <div class="value">{{HO_SURCHARGE_PCT_VALUE}}</div>
+                            <div class="card-foot">
+                                <div class="indicator-row">{{HO_SURCHARGE_PCT_INDICATOR}}</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="metric-card">
-                        <div class="label">Pallet %</div>
-                        <div class="value">{{PALLET_PCT_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{PALLET_PCT_INDICATOR}}</div>
-                            <div class="ship-span">{{SHIP_SPAN}}</div>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="label">Surcharge % (ex-fuel)</div>
-                        <div class="value">{{SURCHARGE_PCT_VALUE}}</div>
-                        <div class="card-foot">
-                            <div class="indicator-row">{{SURCHARGE_PCT_INDICATOR}}</div>
-                            <div class="ship-span">{{SHIP_SPAN}}</div>
-                        </div>
+                    <!-- Surcharges to Chase: packaging >= $75/shipment and insurance
+                         lines with >= $5,000 estimated coverage, ranked by amount. -->
+                    <div class="metric-card claims-card {{CHASE_CLICKABLE_CLASS}}" {{CHASE_CLICK_ATTRS}}>
+                        <div class="label">Surcharges to Chase{{CHASE_MORE_NOTE}}</div>
+                        <table class="coc-table chase-table">
+                            <thead>
+                                <tr><th class="c-track">Tracking</th><th class="c-mfg">Mfg</th><th class="c-why">Why</th><th class="c-amt">$</th></tr>
+                            </thead>
+                            <tbody>
+                                {{CHASE_TABLE_ROWS}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
         </div>
     </div>
+
+    <!-- In-production claims overlay: opens from the Claims + card when 4+ are in production. -->
+    <div class="coc-overlay" id="coc-overlay" onclick="if (event.target === this) this.classList.remove('open')">
+        <div class="coc-modal">
+            <div class="coc-modal-head">
+                <div class="label">Claims on a Claim / Reorder <span class="note">{{COC_ALL_COUNT}} in production</span></div>
+                <button class="coc-modal-close" onclick="document.getElementById('coc-overlay').classList.remove('open')">Close ✕</button>
+            </div>
+            <div class="coc-modal-body">
+                <table class="coc-table">
+                    <thead>
+                        <tr><th>Job #</th><th>Parent</th><th>Mfg</th><th>Loc</th><th>Claim #</th><th>Date</th></tr>
+                    </thead>
+                    <tbody>
+                        {{COC_MODAL_ROWS}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overdue orders overlay: opens from the Overdue Orders card when 4+ are overdue. -->
+    <div class="coc-overlay" id="overdue-overlay" onclick="if (event.target === this) this.classList.remove('open')">
+        <div class="coc-modal">
+            <div class="coc-modal-head">
+                <div class="label">Overdue Orders <span class="note">{{OVERDUE_ALL_COUNT}} past estimated ship date</span></div>
+                <button class="coc-modal-close" onclick="document.getElementById('overdue-overlay').classList.remove('open')">Close &#10005;</button>
+            </div>
+            <div class="coc-modal-body">
+                <table class="coc-table">
+                    <thead>
+                        <tr><th>Job #</th><th>Type</th><th>Mfg</th><th>Loc</th><th>Est Ship</th><th>Days</th></tr>
+                    </thead>
+                    <tbody>
+                        {{OVERDUE_MODAL_ROWS}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Surcharges to chase overlay: opens from the Surcharges to Chase card. -->
+    <div class="coc-overlay" id="chase-overlay" onclick="if (event.target === this) this.classList.remove('open')">
+        <div class="coc-modal">
+            <div class="coc-modal-head">
+                <div class="label">Surcharges to Chase <span class="note">{{CHASE_ALL_COUNT}} lines &middot; {{CHASE_TOTAL}}</span></div>
+                <button class="coc-modal-close" onclick="document.getElementById('chase-overlay').classList.remove('open')">Close &#10005;</button>
+            </div>
+            <div class="coc-modal-body">
+                <table class="coc-table">
+                    <thead>
+                        <tr><th>Tracking</th><th>Mfg</th><th>Why</th><th>Detail</th><th>Ship</th><th>$</th></tr>
+                    </thead>
+                    <tbody>
+                        {{CHASE_MODAL_ROWS}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.coc-overlay.open')
+                    .forEach(function (o) { o.classList.remove('open'); });
+            }
+        });
+
+        /* ---------------------------------------------------------------
+           ANTI-SLEEP (Mat 2026-08-14)
+           The board is cast to a TV that blanks itself when nothing on
+           screen changes. Three defenses, cheapest first:
+             1. A clock that repaints every second (visible motion).
+             2. CSS keyframe animations (pulse dot + header sweep) that keep
+                the compositor busy between ticks.
+             3. The Screen Wake Lock API where the TV browser supports it,
+                re-acquired whenever the tab becomes visible again.
+           The 5-minute <meta refresh> reloads the page, which re-runs all
+           three — so the lock never goes stale.
+           --------------------------------------------------------------- */
+        (function () {
+            var hm  = document.getElementById('clock-hm');
+            var sec = document.getElementById('clock-sec');
+            var mer = document.getElementById('clock-mer');
+
+            function tick() {
+                var d = new Date();
+                var h = d.getHours();
+                var m = d.getMinutes();
+                var s = d.getSeconds();
+                var ampm = h >= 12 ? 'PM' : 'AM';
+                var h12 = h % 12; if (h12 === 0) h12 = 12;
+                hm.textContent  = h12 + ':' + (m < 10 ? '0' + m : m);
+                sec.textContent = ':' + (s < 10 ? '0' + s : s);
+                mer.textContent = ampm;
+            }
+            tick();
+            setInterval(tick, 1000);
+
+            var lock = null;
+            function acquire() {
+                if (!('wakeLock' in navigator)) return;
+                navigator.wakeLock.request('screen').then(function (l) {
+                    lock = l;
+                    l.addEventListener('release', function () { lock = null; });
+                }).catch(function () { /* denied or unsupported — clock still ticks */ });
+            }
+            acquire();
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible' && lock === null) acquire();
+            });
+        })();
+    </script>
 </body>
 </html>
