@@ -104,6 +104,14 @@ MFG_SHEET_CSV_URL = os.environ.get("AOD_MFG_SHEET_CSV_URL", "").strip()
 # endpoint, which serves any tab of a link-shared sheet by name.
 MFG_SHEET_ID = os.environ.get(
     "AOD_MFG_SHEET_ID", "10Riwpojj3pR_UVQlEtTsQE27eVygQyY6JmRO-ZK_u-c").strip()
+# Surcharges already chased. A Google Form writes one row per chase into a tab
+# of the Mfg Partner sheet; the dashboard reads that tab and drops those
+# tracking numbers. Unset = no filtering and no "mark chased" links, so the
+# board still renders on a machine that has not been configured.
+SURCHARGE_CHASED_CSV_URL = os.environ.get("AOD_SURCHARGE_CHASED_CSV_URL", "").strip()
+# Pre-filled Form URL. {TRACK}, {MFG} and {AMT} are substituted per row.
+SURCHARGE_CHASE_FORM_URL = os.environ.get("AOD_SURCHARGE_CHASE_FORM_URL", "").strip()
+
 MFG_SHEET_OVERDUE_CSV_URL = os.environ.get(
     "AOD_MFG_SHEET_OVERDUE_CSV_URL",
     f"https://docs.google.com/spreadsheets/d/{MFG_SHEET_ID}"
@@ -224,7 +232,7 @@ def pct_change(current, prior):
     return (current - prior) / prior * 100.0
 
 
-def indicator_html(pct, lower_is_better=False, insufficient_data=False):
+def indicator_html(pct, lower_is_better=False, insufficient_data=False, compact=False):
     """
     Build the HTML for the colored arrow indicator next to a stat.
 
@@ -235,10 +243,16 @@ def indicator_html(pct, lower_is_better=False, insufficient_data=False):
     Color tiers (by |pct|):  <3% = light, 3-10% = medium, >=10% = deep.
     Green when improving, red when worsening.
     """
+    # compact: arrow + % only, no "vs prior" tail. Used anywhere the pill has to
+    # share a card with another number — the dual Measure -> Install card and the
+    # half-width Shipping tiles — where the full pill was as wide as its column
+    # and swamped the number it was annotating (Mat 2026-09-04).
     if insufficient_data:
-        return '<span class="indicator no-data">not enough data yet</span>'
+        return ('<span class="indicator no-data compact">&mdash;</span>' if compact
+                else '<span class="indicator no-data">not enough data yet</span>')
     if pct is None:
-        return '<span class="indicator no-data">no prior data</span>'
+        return ('<span class="indicator no-data compact">&mdash;</span>' if compact
+                else '<span class="indicator no-data">no prior data</span>')
 
     abs_pct = abs(pct)
     if abs_pct < 3:
@@ -254,6 +268,9 @@ def indicator_html(pct, lower_is_better=False, insufficient_data=False):
 
     arrow = "▲" if going_up else "▼"
     sign = "+" if pct >= 0 else ""
+    if compact:
+        return (f'<span class="indicator {color_class} compact">'
+                f'<span class="arrow">{arrow}</span>{sign}{pct:.0f}%</span>')
     return (
         f'<span class="indicator {color_class}">'
         f'<span class="arrow">{arrow}</span> {sign}{pct:.1f}%'
@@ -1872,6 +1889,13 @@ def shipping_window_summary(start_date, end_date_inclusive):
     chase = [p for p in pack_by_shipment if p["amt"] >= PACKAGING_ITEMISE_MIN]
     chase += [f for f in ho_lines
               if f["group"] == INSURANCE_GROUP and (f["est"] or 0) >= INSURANCE_VALUE_ALERT]
+    # Drop anything already chased. Once chased it never comes back — follow-up
+    # on a non-response happens in email, not on the board (Mat 2026-09-04).
+    chased = fetch_chased_tracking()
+    if chased:
+        before = len(chase)
+        chase = [f for f in chase if _norm_track(_tracking_ref(f["s"])) not in chased]
+        print(f"   chased log: {before - len(chase)} line(s) suppressed", file=sys.stderr)
     chase.sort(key=lambda x: -x["amt"])
 
     ship_dates = [s.get("ship_date") for s in shipments if s.get("ship_date")]
@@ -1892,7 +1916,7 @@ def shipping_window_summary(start_date, end_date_inclusive):
     }
 
 
-CHASE_CARD_MAX_ROWS = 4  # card shows 4; more than that enables click-to-expand
+CHASE_CARD_MAX_ROWS = 3  # card shows 3 (standard table-card height); 4+ enables click-to-expand
 
 
 def _chase_why(rec):
@@ -1903,6 +1927,58 @@ def _chase_why(rec):
                          for t in rec["types"]})
         return labels[0] if len(labels) == 1 else "Packaging"
     return CHASE_SHORT_LABEL.get(rec["group"], rec["group"])
+
+
+_chased_cache = None
+
+def _norm_track(ref):
+    """Tracking numbers get pasted with spaces/dashes — compare on the bare form."""
+    return re.sub(r"[^A-Z0-9]", "", (ref or "").upper())
+
+
+def fetch_chased_tracking():
+    """
+    Set of tracking numbers already chased, from the Form-backed log tab.
+    Empty set when the URL is not configured (no filtering).
+    """
+    global _chased_cache
+    if _chased_cache is not None:
+        return _chased_cache
+    _chased_cache = set()
+    if not SURCHARGE_CHASED_CSV_URL:
+        return _chased_cache
+    try:
+        req = Request(SURCHARGE_CHASED_CSV_URL, headers={"User-Agent": "AoD-Dashboard/1.0"})
+        content = urlopen(req, timeout=30).read().decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"  ! chased-surcharge log fetch error: {e}", file=sys.stderr)
+        return _chased_cache
+    # Accept any column whose header mentions tracking; fall back to column B,
+    # which is where the Form puts its first question.
+    rows = list(csv.reader(io.StringIO(content)))
+    if not rows:
+        return _chased_cache
+    header = [h.strip().lower() for h in rows[0]]
+    col = next((i for i, h in enumerate(header) if "tracking" in h), 1)
+    for r in rows[1:]:
+        if col < len(r):
+            t = _norm_track(r[col])
+            if t:
+                _chased_cache.add(t)
+    return _chased_cache
+
+
+def chase_form_link(rec, label="Mark chased"):
+    """Pre-filled Form link for one chase line. Empty when not configured."""
+    if not SURCHARGE_CHASE_FORM_URL:
+        return ""
+    from urllib.parse import quote
+    url = (SURCHARGE_CHASE_FORM_URL
+           .replace("{TRACK}", quote(_tracking_ref(rec["s"])))
+           .replace("{MFG}", quote(rec["s"].get("manufacturer") or "Other"))
+           .replace("{AMT}", quote(f'{rec["amt"]:.2f}')))
+    return (f'<a class="chase-link" href="{url}" target="_blank" rel="noopener" '
+            f'onclick="event.stopPropagation()">{label}</a>')
 
 
 def _short_track(ref):
@@ -1952,7 +2028,7 @@ def chase_modal_rows_html(chase):
     """Overlay body — every chase line, biggest first, with the detail Mat needs
     to actually chase it (delivery city for high-cost, coverage for insurance)."""
     if not chase:
-        return '<tr><td colspan="6" class="coc-empty">Nothing to chase</td></tr>'
+        return '<tr><td colspan="7" class="coc-empty">Nothing to chase</td></tr>'
     out = []
     for f in chase:
         if f["group"] == INSURANCE_GROUP:
@@ -1965,7 +2041,8 @@ def chase_modal_rows_html(chase):
             f'<td>{_chase_why(f)}</td>'
             f'<td>{detail}</td>'
             f'<td>{f["s"].get("ship_date") or "—"}</td>'
-            f'<td>{fmt_currency(f["amt"])}</td></tr>'
+            f'<td>{fmt_currency(f["amt"])}</td>'
+            f'<td>{chase_form_link(f)}</td></tr>'
         )
     return "".join(out)
 
@@ -2177,10 +2254,10 @@ def main():
         # Network Lead Times — Measure → Install (Mat 2026-06-11: measurement-appt
         # anchored, was deposit-anchored). Tokens renamed S2I_* → MTI_*.
         "{{MTI_MEDIAN_VALUE}}":     fmt_weeks_days(mti_med_cur),
-        "{{MTI_MEDIAN_INDICATOR}}": indicator_html(pct_change(mti_med_cur, mti_med_prv), lower_is_better=True),
+        "{{MTI_MEDIAN_INDICATOR}}": indicator_html(pct_change(mti_med_cur, mti_med_prv), lower_is_better=True, compact=True),
 
         "{{MTI_PCT_VALUE}}":     fmt_pct(mti_pct_cur),
-        "{{MTI_PCT_INDICATOR}}": indicator_html(pct_change(mti_pct_cur, mti_pct_prv), lower_is_better=False),
+        "{{MTI_PCT_INDICATOR}}": indicator_html(pct_change(mti_pct_cur, mti_pct_prv), lower_is_better=False, compact=True),
 
         # TAT (Order → Ship) — status 5 → status 6, nearest day. Lower is better.
         "{{TAT_VALUE}}":        (f"{round(tat_med_cur)}d" if tat_med_cur is not None else "—"),
@@ -2230,14 +2307,14 @@ def main():
         # Increase → green, decrease → red.
         "{{PALLET_PCT_INDICATOR}}": indicator_html(
             pct_change(ship_cur.get("pallet_pct"), ship_prv.get("pallet_pct")),
-            lower_is_better=False,
+            lower_is_better=False, compact=True,
         ),
 
         # Surcharges the Home Office fronts — not fuel, not memo pass-through.
         "{{HO_SURCHARGE_PCT_VALUE}}":     fmt_pct(ship_cur.get("ho_pct")),
         "{{HO_SURCHARGE_PCT_INDICATOR}}": indicator_html(
             pct_change(ship_cur.get("ho_pct"), ship_prv.get("ho_pct")),
-            lower_is_better=True),
+            lower_is_better=True, compact=True),
 
         "{{CHASE_TABLE_ROWS}}":      chase_table_rows_html(chase),
         "{{CHASE_MORE_NOTE}}":       chase_more_note(chase),

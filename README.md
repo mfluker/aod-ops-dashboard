@@ -154,8 +154,20 @@ sheet — `fetch_overdue_rows()`. Notes on that data source:
 
 **Shipping** moved from R14 to **R30** so both its numbers tie back to the
 Monday/Wednesday ops report, and is now a two-tile stat row (`.ship-row`:
-Pallet % | Paid by Home Office) over a **Surcharges to Chase** table
-(`.ship-stack` = 1fr 2.15fr). The old "Surcharge % (ex-fuel)" card is gone.
+Pallet % | Paid by Home Office) over a **Surcharges to Chase** table. The old
+"Surcharge % (ex-fuel)" card is gone. `.ship-stack` is `2fr 1.32fr` — the stat
+row is two cards tall and the chase card gets the same 1.32fr as Claims + and
+Overdue Orders, so all three table cards line up across the board. Those stat
+tiles override the card's default `auto 1fr auto` rows with
+`auto auto auto` + `align-content: center`, or the double height flings the
+label to the top and the arrow to the bottom.
+
+**Percent-change pills** come in two forms. `indicator_html(..., compact=True)`
+drops the "vs prior" tail and rounds to a whole number, for anywhere the pill
+shares a card with another number — the dual Measure -> Install halves and the
+two half-width Shipping tiles. The full pill is ~200px wide, which was the
+entire width of those columns; the compact one is ~70px. Do not put a full pill
+back in a half-width card.
 
 **Surcharges Paid by Home Office** is everything that is neither fuel nor memo
 pass-through to the Franchise Partner. `PASS_THROUGH_PATTERNS`, `FLAG_GROUPS`,
@@ -176,6 +188,30 @@ shipping-cost-analysis. Same `load_shipments()` signature, but each record also
 carries airbill/pro/bol, invoice_no, job_ref and receiver city+state, which the
 chase table needs. That parser's own folder search does not know this checkout's
 mount point, so `_invoice_base_paths()` passes the roots explicitly.
+
+### Surcharges to Chase — falloff (2026-09-04)
+
+A chased surcharge has to stop appearing, or the card just accretes. The board
+is a static page on GitHub Pages and cannot record anything itself, so "chased"
+is written to a Google Form whose responses land in a tab of the Mfg Partner
+sheet, and the next refresh drops those tracking numbers.
+
+Two env vars, both optional — with neither set the board renders exactly as
+before (no filtering, no links), so an unconfigured checkout still works:
+- `AOD_SURCHARGE_CHASED_CSV_URL` — gviz CSV of the Form-response tab.
+  `fetch_chased_tracking()` takes the column whose header mentions "tracking",
+  falling back to column B (the Form's first question). Tracking numbers are
+  compared stripped of punctuation (`_norm_track`), since they get pasted with
+  spaces and dashes.
+- `AOD_SURCHARGE_CHASE_FORM_URL` — the pre-filled Form URL with `{TRACK}`,
+  `{MFG}` and `{AMT}` left as literal tokens where the pre-fill placeholders
+  are. `chase_form_link()` substitutes and URL-encodes per row, and the overlay
+  renders a "Mark chased" pill in the last column. The link carries
+  `event.stopPropagation()` so clicking it does not also toggle the overlay.
+
+Once chased, a line never comes back — Mat's call. Chasing a non-response is an
+email problem, not a dashboard problem. There is no re-open window and no
+status column; if that changes, the filter is the one place to change it.
 
 TV check after this change: `python3 test_render.py --shot` reports no overflow
 at 1080p or 4K. Three things were tuned to get there and should not be undone

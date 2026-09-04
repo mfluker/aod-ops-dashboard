@@ -145,9 +145,9 @@ replacements = {
 
     # Network Lead Times
     "{{MTI_MEDIAN_VALUE}}":     fmt_weeks_days(mti_med_cur),
-    "{{MTI_MEDIAN_INDICATOR}}": indicator_html(pct_change(mti_med_cur, mti_med_prv), lower_is_better=True),
+    "{{MTI_MEDIAN_INDICATOR}}": indicator_html(pct_change(mti_med_cur, mti_med_prv), lower_is_better=True, compact=True),
     "{{MTI_PCT_VALUE}}":        fmt_pct(mti_pct_cur),
-    "{{MTI_PCT_INDICATOR}}":    indicator_html(pct_change(mti_pct_cur, mti_pct_prv), lower_is_better=False),
+    "{{MTI_PCT_INDICATOR}}":    indicator_html(pct_change(mti_pct_cur, mti_pct_prv), lower_is_better=False, compact=True),
     "{{TAT_VALUE}}":            f"{tat_med_cur}d",
     "{{TAT_INDICATOR}}":        indicator_html(pct_change(tat_med_cur, tat_med_prv), lower_is_better=True),
 
@@ -186,10 +186,10 @@ replacements = {
     # Shipping (R30)
     "{{PALLET_PCT_VALUE}}":     fmt_pct(ship_cur["pallet_pct"]),
     "{{PALLET_PCT_INDICATOR}}": indicator_html(
-        pct_change(ship_cur["pallet_pct"], ship_prv["pallet_pct"]), lower_is_better=False),
+        pct_change(ship_cur["pallet_pct"], ship_prv["pallet_pct"]), lower_is_better=False, compact=True),
     "{{HO_SURCHARGE_PCT_VALUE}}":     fmt_pct(ship_cur["ho_pct"]),
     "{{HO_SURCHARGE_PCT_INDICATOR}}": indicator_html(
-        pct_change(ship_cur["ho_pct"], ship_prv["ho_pct"]), lower_is_better=True),
+        pct_change(ship_cur["ho_pct"], ship_prv["ho_pct"]), lower_is_better=True, compact=True),
 
     "{{CHASE_TABLE_ROWS}}":      chase_table_rows_html(chase),
     "{{CHASE_MORE_NOTE}}":       chase_more_note(chase),

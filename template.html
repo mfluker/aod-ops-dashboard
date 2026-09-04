@@ -394,7 +394,10 @@
         .category-col .stack.lead-stack { grid-template-rows: 1fr 1fr 1.32fr; }
         /* Shipping: a two-tile stat row on top, Surcharges to Chase below.
            Mat 2026-09-04 - the chase table needs the height more than the tiles do. */
-        .category-col .stack.ship-stack { grid-template-rows: 1fr 2.15fr; }
+        /* The stat row takes the height of two normal cards; the chase card gets the
+           same 1.32fr as Claims + and Overdue Orders so all three table cards
+           line up across the board (Mat 2026-09-04). */
+        .category-col .stack.ship-stack { grid-template-rows: 2fr 1.32fr; }
         .ship-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -506,6 +509,7 @@
         }
         .dual-half + .dual-half { border-left: 1px solid var(--border-soft); }
         .dual-half .value { font-size: 2.15rem; }
+        .dual-half .vs-prior { font-size: 0.7rem; }
         .dual-half .sub-label {
             font-size: 0.6rem;
             font-weight: 800;
@@ -517,14 +521,22 @@
 
         /* Shipping stat tiles are half-width, so everything steps down a notch
            and the label is allowed to wrap onto a second line. */
-        .ship-row .metric-card { padding: 0.35rem 0.4rem; }
+        /* The stat row is two cards tall, so the default auto/1fr/auto rows
+           would fling the label to the top and the arrow to the bottom. Pack the
+           three parts together and centre the group instead. */
+        .ship-row .metric-card {
+            padding: 0.35rem 0.4rem;
+            grid-template-rows: auto auto auto;
+            align-content: center;
+            gap: 0.25rem;
+        }
         .ship-row .metric-card .label {
             font-size: 0.6rem;
             letter-spacing: 0.06em;
             line-height: 1.15;
         }
         .ship-row .metric-card .value { font-size: 2.1rem; }
-        .ship-row .metric-card .indicator-row { font-size: 0.68rem; }
+        .ship-row .metric-card .indicator-row { font-size: 0.7rem; }
         .ship-row .metric-card .ship-span { font-size: 0.5rem; }
 
         /* Surcharges to Chase: four columns in one half-column card, so the type
@@ -694,6 +706,15 @@
             white-space: nowrap;
         }
         .indicator .arrow { font-size: 1.05em; line-height: 1; }
+        /* Compact pill: arrow + whole-number %, nothing else. The full pill was
+           as wide as the column it sat in on the dual and half-width cards. */
+        .indicator.compact {
+            gap: 0.12rem;
+            padding: 0.06rem 0.34rem;
+            letter-spacing: 0;
+        }
+        .indicator.compact .arrow { font-size: 0.9em; }
+        .indicator.no-data.compact { font-style: normal; }
         .indicator.up-light  { color: var(--up-light); background: rgba(136, 182, 177, 0.20); }
         .indicator.up-med    { color: var(--up-med);   background: rgba(53, 133, 125, 0.16); }
         .indicator.up-deep   { color: var(--up-deep);  background: rgba(31, 107, 100, 0.16); }
@@ -775,6 +796,20 @@
             border-radius: 999px;
             white-space: nowrap;
         }
+        /* "Mark chased" — opens the pre-filled Google Form for that line. */
+        .chase-link {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-decoration: none;
+            color: #fff;
+            background: var(--up-med);
+            padding: 0.12rem 0.6rem;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .chase-link:hover { background: var(--up-deep); }
         .coc-status.prod { color: #fff; background: var(--up-med); }
         .coc-status.done { color: var(--text-secondary); background: rgba(154, 160, 166, 0.18); }
     </style>
@@ -1046,7 +1081,7 @@
             <div class="coc-modal-body">
                 <table class="coc-table">
                     <thead>
-                        <tr><th>Tracking</th><th>Mfg</th><th>Why</th><th>Detail</th><th>Ship</th><th>$</th></tr>
+                        <tr><th>Tracking</th><th>Mfg</th><th>Why</th><th>Detail</th><th>Ship</th><th>$</th><th></th></tr>
                     </thead>
                     <tbody>
                         {{CHASE_MODAL_ROWS}}
